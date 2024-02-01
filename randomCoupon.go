@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
@@ -38,21 +39,62 @@ func GenerateRandomCoupon() Coupon {
 	// Random campaign ID (between 1 and 10)
 	campaignID := generateRandomCampaignID()
 
+	trialDuration := generateRandomBillingPeriodDuration()
+	postTrialPricing := generateRandomPostTrialPricing()
+	discountDurationCycles := generateRandomBillingPeriodDuration()
+	fixedPriceDuration := generateRandomBillingPeriodDuration()
+	eligiblePlans := generateRandomEligiblePlans()
+
 	return Coupon{
-		Code:            couponCode,
-		Description:     couponDescription,
-		DiscountType:    discountType,
-		DiscountValue:   discountValue,
-		MinimumPurchase: minimumPurchase,
-		ExpirationDate:  expirationDate,
-		IsSingleUse:     isSingleUse,
-		UsageLimit:      usageLimit,
-		IsActive:        isActive,
-		CampaignID:      campaignID,
+		Code:                   couponCode,
+		Description:            couponDescription,
+		DiscountType:           discountType,
+		DiscountValue:          discountValue,
+		MinimumPurchase:        minimumPurchase,
+		ExpirationDate:         expirationDate,
+		IsSingleUse:            isSingleUse,
+		UsageLimit:             usageLimit,
+		IsActive:               isActive,
+		CampaignID:             campaignID,
+		TrialDuration:          trialDuration,
+		PostTrialPricing:       postTrialPricing,
+		DiscountDurationCycles: discountDurationCycles,
+		FixedPriceDuration:     fixedPriceDuration,
+		EligiblePlans:          eligiblePlans,
 	}
 }
 
 // Helper functions to generate random values
+
+func generateRandomBillingPeriodDuration() BillingPeriodDuration {
+	periods := []BillingPeriod{BillingPeriodHourly, BillingPeriodDaily, BillingPeriodWeekly /* other periods */}
+	period := periods[rand.Intn(len(periods))]
+	length := rand.Intn(12) + 1 // Random length between 1 and 12
+	return BillingPeriodDuration{
+		Period: period,
+		Length: length,
+	}
+}
+
+func generateRandomPostTrialPricing() float64 {
+	return float64(rand.Intn(200)) // Random pricing between 0 and 200
+}
+
+func generateRandomEligiblePlans() json.RawMessage {
+	numPlans := rand.Intn(5) + 1 // Random number of plans between 1 and 5
+	plans := make([]int, numPlans)
+	for i := 0; i < numPlans; i++ {
+		plans[i] = rand.Intn(10) + 1 // Random plan IDs between 1 and 10
+	}
+
+	// Convert the slice of integers to json.RawMessage
+	plansJSON, err := json.Marshal(plans)
+	if err != nil {
+		// Handle the error appropriately in your application
+		panic(err) // For example purposes only
+	}
+	return json.RawMessage(plansJSON)
+}
 
 func generateRandomCouponCode() string {
 	// Generate a random coupon code (e.g., "SUMMER25")
@@ -65,18 +107,33 @@ func generateRandomCouponDescription() string {
 	return descriptions[rand.Intn(len(descriptions))]
 }
 
-func generateRandomDiscountType() string {
-	// Generate a random discount type ("percentage" or "fixed")
-	types := []string{"percentage", "fixed"}
+func generateRandomDiscountType() CouponDiscountType {
+	// Generate a random discount type from the available types
+	types := []CouponDiscountType{
+		DiscountTypePercentage,
+		DiscountTypeFixedAmount,
+		DiscountTypeBuyOneGetOne,
+		DiscountTypeFreeShipping,
+		DiscountTypeTrialPeriod,
+		DiscountTypeRecurringDiscount,
+		DiscountTypeFixedPriceSubscription,
+	}
 	return types[rand.Intn(len(types))]
 }
 
-func generateRandomDiscountValue(discountType string) float64 {
+func generateRandomDiscountValue(discountType CouponDiscountType) float64 {
 	// Generate a random discount value based on the discount type
-	if discountType == "percentage" {
-		return float64(rand.Intn(101)) // Between 0% and 100%
+	switch discountType {
+	case DiscountTypePercentage, DiscountTypeRecurringDiscount:
+		// Percentage-based discounts (0% to 100%)
+		return float64(rand.Intn(101))
+	case DiscountTypeFixedAmount, DiscountTypeFixedPriceSubscription:
+		// Fixed amount discounts (e.g., $0 to $100)
+		return float64(rand.Intn(101))
+	default:
+		// For other types, you might return a standard value or based on some other logic
+		return 0
 	}
-	return float64(rand.Intn(101)) // Between 0 and 100
 }
 
 func generateRandomMinimumPurchase() float64 {

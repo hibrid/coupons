@@ -9,7 +9,7 @@ CREATE TABLE Campaigns (
 
 -- Create the Coupons table
 CREATE TABLE Coupons (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(50) NOT NULL,
     description VARCHAR(255) NOT NULL,
     discount_type VARCHAR(50) NOT NULL,
@@ -19,7 +19,20 @@ CREATE TABLE Coupons (
     is_single_use BOOLEAN NOT NULL,
     usage_limit INT NOT NULL,
     is_active BOOLEAN NOT NULL,
+    is_valid BOOLEAN NOT NULL,
+    not_valid_reason VARCHAR(255),
     campaign_id INT NOT NULL,
+
+    -- fields for standardized billing periods and subscription-related information
+    trial_period_unit VARCHAR(20),
+    trial_period_length INT,
+    post_trial_pricing DECIMAL(10, 2),
+    discount_duration_unit VARCHAR(20),
+    discount_duration_length INT,
+    fixed_price_duration_unit VARCHAR(20),
+    fixed_price_duration_length INT,
+    eligible_plans JSON,
+
     FOREIGN KEY (campaign_id) REFERENCES Campaigns(id),
     INDEX idx_code (code),
     INDEX idx_expiration_date (expiration_date)
