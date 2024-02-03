@@ -6,8 +6,13 @@ import (
 )
 
 type Campaign struct {
-	ID        int
-	Name      string
+	ID                 int
+	Name               string
+	CouponType         CouponType
+	CouponVanityName   string
+	CouponDiscountType CouponDiscountType
+	DiscountValue      float64
+
 	StartDate string
 	EndDate   string
 	IsActive  bool

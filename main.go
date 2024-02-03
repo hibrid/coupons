@@ -1,33 +1,8 @@
 package main
 
 import (
-	"encoding/json"
-
 	_ "github.com/go-sql-driver/mysql"
 )
-
-// Define a struct to represent coupon generation configuration
-type CouponConfig struct {
-	CouponPrefix    string
-	CouponCount     int
-	DiscountType    CouponDiscountType
-	DiscountValue   float64
-	MinimumPurchase float64
-	ExpirationDate  string
-	IsSingleUse     bool
-	UsageLimit      int
-	IsActive        bool
-	CampaignID      int
-
-	TrialPeriodUnit          BillingPeriod
-	TrialPeriodLength        int
-	PostTrialPricing         float64
-	DiscountDurationUnit     BillingPeriod
-	DiscountDurationLength   int
-	FixedPriceDurationUnit   BillingPeriod
-	FixedPriceDurationLength int
-	EligiblePlans            json.RawMessage `json:"eligible_plans"`
-}
 
 type BillingPeriod string
 

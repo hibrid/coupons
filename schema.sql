@@ -2,6 +2,15 @@
 CREATE TABLE Campaigns (
     id INT AUTO_INCREMENT PRIMARY KEY,
     campaign_name VARCHAR(255) NOT NULL,
+    coupon_type VARCHAR(255) NOT NULL,
+    coupon_vanity_name VARCHAR(255) NOT NULL,
+    discount_type VARCHAR(50) NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    minimum_purchase DECIMAL(10, 2) NOT NULL,
+    is_single_use BOOLEAN NOT NULL,
+    usage_limit INT NOT NULL,
+    expire_after_days INT NOT NULL,
+    expire_after_hours INT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     is_active BOOLEAN NOT NULL
@@ -11,7 +20,9 @@ CREATE TABLE Campaigns (
 CREATE TABLE Coupons (
         id INT AUTO_INCREMENT PRIMARY KEY,
     code VARCHAR(50) NOT NULL,
-    description VARCHAR(255) NOT NULL,
+    'description' VARCHAR(255) NOT NULL,
+    coupon_type VARCHAR(255) NOT NULL,
+	coupon_vanity_name VARCHAR(255) NOT NULL,
     discount_type VARCHAR(50) NOT NULL,
     discount_value DECIMAL(10, 2) NOT NULL,
     minimum_purchase DECIMAL(10, 2) NOT NULL,

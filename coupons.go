@@ -9,26 +9,125 @@ import (
 	"time"
 )
 
+// Define a struct to represent coupon generation configuration
+type CouponConfig struct {
+	CouponPrefix      string
+	CouponSuffix      string
+	CouponVanityName  string
+	CouponPattern     string
+	CouponCount       int
+	CouponType        CouponType
+	DiscountType      CouponDiscountType
+	DiscountValue     float64
+	MinimumPurchase   float64
+	ExpirationDate    string
+	IsSingleUse       bool
+	UsageLimit        int
+	AvailabilityCount int
+	IsActive          bool
+	CampaignID        int
+
+	TrialPeriodUnit          BillingPeriod
+	TrialPeriodLength        int
+	PostTrialPricing         float64
+	DiscountDurationUnit     BillingPeriod
+	DiscountDurationLength   int
+	FixedPriceDurationUnit   BillingPeriod
+	FixedPriceDurationLength int
+	EligiblePlans            json.RawMessage `json:"eligible_plans"`
+}
+
 type Coupon struct {
-	ID              int
-	Code            string
-	Description     string
-	DiscountType    CouponDiscountType
-	DiscountValue   float64
-	MinimumPurchase float64
-	ExpirationDate  string
-	IsSingleUse     bool
-	UsageLimit      int
-	IsActive        bool
-	CampaignID      int
-	IsValid         bool
-	NotValidReason  string
+	ID                int
+	Code              string
+	CouponType        CouponType
+	VanityName        string
+	Description       string
+	DiscountType      CouponDiscountType
+	DiscountValue     float64
+	MinimumPurchase   float64
+	ExpirationDate    string
+	IsSingleUse       bool
+	UsageLimit        int
+	AvailabilityCount int
+	IsActive          bool
+	CampaignID        int
+	IsValid           bool
+	NotValidReason    string
 
 	TrialDuration          BillingPeriodDuration
 	PostTrialPricing       float64
 	DiscountDurationCycles BillingPeriodDuration
 	FixedPriceDuration     BillingPeriodDuration
 	EligiblePlans          json.RawMessage `json:"eligible_plans"`
+}
+
+func (c *Coupon) String() string {
+	return fmt.Sprintf("Coupon %s: %s, Discount: %s, Expiration: %s", c.Code, c.Description, c.DiscountType.String(), c.ExpirationDate)
+}
+
+func (c *Coupon) IsVanityCode() bool {
+	return c.CouponType.IsVanityCode()
+}
+
+func (c *Coupon) IsReferralCode() bool {
+	return c.CouponType.IsReferralCode()
+}
+
+func (c *Coupon) IsPromoCode() bool {
+	return c.CouponType.IsPromoCode()
+}
+
+func (c *Coupon) IsLoyaltyCode() bool {
+	return c.CouponType.IsLoyaltyCode()
+}
+
+func (c *Coupon) IsUnknownCodeType() bool {
+	return c.CouponType.IsUnknown()
+}
+
+func (c *Coupon) IsKnownCodeType() bool {
+	return c.CouponType.IsKnown()
+}
+
+func (c *Coupon) IsSubscriptionDiscount() bool {
+	return c.DiscountType.IsSubscriptionDiscount()
+}
+
+func (c *Coupon) IsRecurringDiscount() bool {
+	return c.DiscountType.IsRecurringDiscount()
+}
+
+func (c *Coupon) IsTrialPeriod() bool {
+	return c.DiscountType.IsTrialPeriod()
+}
+
+func (c *Coupon) IsFixedPriceSubscription() bool {
+	return c.DiscountType.IsFixedPriceSubscription()
+}
+
+func (c *Coupon) IsPercentage() bool {
+	return c.DiscountType.IsPercentage()
+}
+
+func (c *Coupon) IsFixedAmount() bool {
+	return c.DiscountType.IsFixedAmount()
+}
+
+func (c *Coupon) IsBuyOneGetOne() bool {
+	return c.DiscountType.IsBuyOneGetOne()
+}
+
+func (c *Coupon) IsFreeShipping() bool {
+	return c.DiscountType.IsFreeShipping()
+}
+
+func (c *Coupon) IsUnknownDiscountType() bool {
+	return c.DiscountType.IsUnknown()
+}
+
+func (c *Coupon) IsKnownDiscountType() bool {
+	return c.DiscountType.IsKnown()
 }
 
 /*
@@ -71,6 +170,70 @@ func (mf *Coupon) IsNewCustomer(IsNewCustomer bool) string {
 	}
 
 	return fmt.Sprintf("this is not a new customer")
+}
+
+type CouponType int
+
+const (
+	CouponTypeUnknown      CouponType = iota // Default value
+	CouponTypeVanityCode                     // Vanity code is used for vanity URLs
+	CouponTypeReferralCode                   // Referral code is used for referral programs
+	CouponTypePromoCode                      // Promo code is used for general promotions
+	CouponTypeLoyaltyCode                    // Loyalty code is used for customer loyalty programs
+)
+
+func (ct CouponType) String() string {
+	switch ct {
+	case CouponTypeVanityCode:
+		return "VanityCodeType"
+	case CouponTypeReferralCode:
+		return "ReferralCodeType"
+	case CouponTypePromoCode:
+		return "PromoCodeType"
+	case CouponTypeLoyaltyCode:
+		return "LoyaltyCodeType"
+	default:
+		return "UnknownCodeType"
+	}
+}
+
+var stringToCouponType = map[string]CouponType{
+	"VanityCodeType":   CouponTypeVanityCode,
+	"ReferralCodeType": CouponTypeReferralCode,
+	"PromoCodeType":    CouponTypePromoCode,
+	"LoyaltyCodeType":  CouponTypeLoyaltyCode,
+}
+
+func ConvertStringToCouponType(s string) (CouponType, error) {
+	if ct, ok := stringToCouponType[s]; ok {
+		return ct, nil
+	}
+	return CouponTypeUnknown, errors.New("invalid coupon type")
+}
+
+func (ct CouponType) IsVanityCode() bool {
+	fmt.Println("IsVanityCode")
+	return ct == CouponTypeVanityCode
+}
+
+func (ct CouponType) IsReferralCode() bool {
+	return ct == CouponTypeReferralCode
+}
+
+func (ct CouponType) IsPromoCode() bool {
+	return ct == CouponTypePromoCode
+}
+
+func (ct CouponType) IsLoyaltyCode() bool {
+	return ct == CouponTypeLoyaltyCode
+}
+
+func (ct CouponType) IsUnknown() bool {
+	return ct == CouponTypeUnknown
+}
+
+func (ct CouponType) IsKnown() bool {
+	return ct != CouponTypeUnknown
 }
 
 type CouponDiscountType int
@@ -120,6 +283,46 @@ var stringToDiscountType = map[string]CouponDiscountType{
 	"FixedPriceSubscription": DiscountTypeFixedPriceSubscription,
 }
 
+func (dt CouponDiscountType) IsSubscriptionDiscount() bool {
+	return dt == DiscountTypeTrialPeriod || dt == DiscountTypeRecurringDiscount || dt == DiscountTypeFixedPriceSubscription
+}
+
+func (dt CouponDiscountType) IsRecurringDiscount() bool {
+	return dt == DiscountTypeRecurringDiscount || dt == DiscountTypeFixedPriceSubscription
+}
+
+func (dt CouponDiscountType) IsTrialPeriod() bool {
+	return dt == DiscountTypeTrialPeriod
+}
+
+func (dt CouponDiscountType) IsFixedPriceSubscription() bool {
+	return dt == DiscountTypeFixedPriceSubscription
+}
+
+func (dt CouponDiscountType) IsPercentage() bool {
+	return dt == DiscountTypePercentage
+}
+
+func (dt CouponDiscountType) IsFixedAmount() bool {
+	return dt == DiscountTypeFixedAmount
+}
+
+func (dt CouponDiscountType) IsBuyOneGetOne() bool {
+	return dt == DiscountTypeBuyOneGetOne
+}
+
+func (dt CouponDiscountType) IsFreeShipping() bool {
+	return dt == DiscountTypeFreeShipping
+}
+
+func (dt CouponDiscountType) IsUnknown() bool {
+	return dt == DiscountTypeUnknown
+}
+
+func (dt CouponDiscountType) IsKnown() bool {
+	return dt != DiscountTypeUnknown
+}
+
 /*
 ConvertStringToDiscountType converts a string to CouponDiscountType
 
@@ -155,20 +358,90 @@ func ConvertStringToDiscountType(s string) (CouponDiscountType, error) {
 	return DiscountTypeUnknown, errors.New("invalid discount type")
 }
 
+func validateBillingPeriodUnit(period BillingPeriod) error {
+	if period == "" {
+		return errors.New("billing period is required")
+	}
+	return nil
+}
+
+func validatePeriodDuration(fieldName string, period BillingPeriodDuration) error {
+	if err := validateBillingPeriodUnit(period.Period); err != nil {
+		// add the field name to the error message
+		return errors.New("invalid " + fieldName + " period: " + err.Error())
+	}
+	if period.Period != "" && period.Length <= 0 {
+		return errors.New("invalid " + fieldName + " length")
+	}
+	return nil
+}
+
+func validateDiscountTypeConfig(discountType CouponDiscountType, config CouponConfig) error {
+	if discountType.IsTrialPeriod() && config.TrialPeriodUnit == "" {
+		return errors.New("trial period unit is required for TrialPeriod discount type")
+	}
+
+	if discountType.IsRecurringDiscount() && config.DiscountDurationUnit == "" {
+		return errors.New("discount duration unit is required for RecurringDiscount discount type")
+	}
+
+	if discountType.IsFixedPriceSubscription() && config.FixedPriceDurationUnit == "" {
+		return errors.New("fixed price duration unit is required for FixedPriceSubscription discount type")
+	}
+	return nil
+}
+
+func validateCouponConfig(config CouponConfig) error {
+	if !config.CouponType.IsKnown() {
+		return errors.New("invalid CouponType")
+	}
+
+	if !config.DiscountType.IsKnown() {
+		return errors.New("invalid DiscountType")
+	}
+
+	if config.DiscountType == DiscountTypePercentage || config.DiscountType == DiscountTypeFixedAmount {
+		if config.DiscountValue < 0 || config.DiscountValue > 100 {
+			return errors.New("DiscountValue must be between 0 and 100")
+		}
+	}
+
+	_, err := time.Parse("2006-01-02", config.ExpirationDate)
+	if err != nil {
+		return errors.New("invalid ExpirationDate format")
+	}
+
+	if err := validateDiscountTypeConfig(config.DiscountType, config); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Generate coupons in bulk based on configuration and return the generated coupons
 func GenerateCoupons(db *sql.DB, config CouponConfig) ([]Coupon, error) {
+
+	if config.CouponType.IsVanityCode() && config.CouponVanityName == "" {
+		return nil, errors.New("vanity code name is required for Vanity code type")
+	}
+
+	validateCouponConfig(config)
+
 	var generatedCoupons []Coupon
 
 	stmt, err := db.Prepare(`
         INSERT INTO Coupons (
             coupon_code, 
 			coupon_description, 
+			coupon_type,
+			coupon_vanity_name,
 			discount_type, 
 			discount_value, 
 			minimum_purchase_amount,
             expiration_date, 
 			is_single_use, 
 			usage_limit, 
+			availability_count,
 			is_active, 
 			campaign_id,
             trial_period_unit, 
@@ -179,7 +452,7 @@ func GenerateCoupons(db *sql.DB, config CouponConfig) ([]Coupon, error) {
 			fixed_price_duration_unit,
             fixed_price_duration_length, 
 			eligible_plans
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 	if err != nil {
 		return nil, err
@@ -189,18 +462,21 @@ func GenerateCoupons(db *sql.DB, config CouponConfig) ([]Coupon, error) {
 	for i := 1; i <= config.CouponCount; i++ {
 		couponCode := fmt.Sprintf("%s%d", config.CouponPrefix, i)
 		newCoupon := Coupon{
-			Code:            couponCode,
-			Description:     fmt.Sprintf("%s Coupon %d", config.CouponPrefix, i),
-			DiscountType:    config.DiscountType,
-			DiscountValue:   config.DiscountValue,
-			MinimumPurchase: config.MinimumPurchase,
-			ExpirationDate:  config.ExpirationDate,
-			IsSingleUse:     config.IsSingleUse,
-			UsageLimit:      config.UsageLimit,
-			IsActive:        config.IsActive,
-			CampaignID:      config.CampaignID,
-			IsValid:         true, // Set to true initially, can be changed based on rules later
-			NotValidReason:  "",
+			Code:              couponCode,
+			Description:       fmt.Sprintf("%s Coupon %d", config.CouponPrefix, i),
+			DiscountType:      config.DiscountType,
+			DiscountValue:     config.DiscountValue,
+			CouponType:        config.CouponType,
+			VanityName:        config.CouponVanityName,
+			MinimumPurchase:   config.MinimumPurchase,
+			ExpirationDate:    config.ExpirationDate,
+			IsSingleUse:       config.IsSingleUse,
+			UsageLimit:        config.UsageLimit,
+			AvailabilityCount: config.AvailabilityCount,
+			IsActive:          config.IsActive,
+			CampaignID:        config.CampaignID,
+			IsValid:           true, // Set to true initially, can be changed based on rules later
+			NotValidReason:    "",
 
 			TrialDuration: BillingPeriodDuration{
 				Period: config.TrialPeriodUnit,
@@ -223,8 +499,8 @@ func GenerateCoupons(db *sql.DB, config CouponConfig) ([]Coupon, error) {
 			return nil, err
 		}
 		_, err = stmt.Exec(
-			newCoupon.Code, newCoupon.Description, newCoupon.DiscountType.String(), newCoupon.DiscountValue, newCoupon.MinimumPurchase,
-			newCoupon.ExpirationDate, newCoupon.IsSingleUse, newCoupon.UsageLimit, newCoupon.IsActive, newCoupon.CampaignID,
+			newCoupon.Code, newCoupon.Description, newCoupon.CouponType.String(), newCoupon.DiscountType.String(), newCoupon.DiscountValue, newCoupon.MinimumPurchase,
+			newCoupon.ExpirationDate, newCoupon.IsSingleUse, newCoupon.UsageLimit, newCoupon.AvailabilityCount, newCoupon.IsActive, newCoupon.CampaignID,
 			newCoupon.TrialDuration.Period, newCoupon.TrialDuration.Length, newCoupon.PostTrialPricing,
 			newCoupon.DiscountDurationCycles.Period, newCoupon.DiscountDurationCycles.Length, newCoupon.FixedPriceDuration.Period,
 			newCoupon.FixedPriceDuration.Length, eligiblePlansJSON,

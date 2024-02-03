@@ -92,7 +92,7 @@ func ApplyRuleset(rulesets []RuleSet, coupons []Coupon, customerContext Customer
 			if coupon.IsValid {
 				fmt.Printf("Coupon %s is valid\n", coupon.Code)
 			} else {
-				fmt.Printf("Coupon %s is not valid: %s \n", coupon.Code, coupon.NotValidReason, coupon)
+				fmt.Printf("Coupon %s is not valid: %s, %v \n", coupon.Code, coupon.NotValidReason, coupon)
 			}
 		}
 
