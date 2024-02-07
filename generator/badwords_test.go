@@ -1,4 +1,4 @@
-package coupon
+package generator
 
 import (
 	"testing"

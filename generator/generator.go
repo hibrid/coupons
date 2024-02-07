@@ -1,4 +1,4 @@
-package coupon
+package generator
 
 import (
 	"errors"
@@ -16,8 +16,8 @@ var (
 	removeInvalidRe = regexp.MustCompile(`[^0-9A-Z]+`)
 
 	// defaults
-	minCodesCount uint16 = 1
-	minLength     uint16 = 6
+	minCodesCount uint32 = 1
+	minLength     uint32 = 6
 )
 
 const patternChar = "#"
@@ -35,7 +35,7 @@ func init() {
 
 type Generator struct {
 	// MinimumLength of the code
-	MinimumLength uint16 `json:"length"`
+	MinimumLength uint32 `json:"length"`
 
 	// Pattern character
 	PatternCharacter string `json:"pattern_character"`
@@ -44,7 +44,7 @@ type Generator struct {
 	PatternDivider string `json:"pattern_divider"`
 
 	// Count of the codes
-	Count uint16 `json:"count"`
+	Count uint32 `json:"count"`
 
 	// Charset to use
 	Charset string `json:"charset"`
@@ -89,7 +89,7 @@ func (g *Generator) Run() ([]string, error) {
 
 	result := make([]string, g.Count)
 
-	var i uint16
+	var i uint32
 	for i = 0; i < g.Count; i++ {
 		code := g.one()
 		if !hasBadWord(code) {
@@ -100,6 +100,22 @@ func (g *Generator) Run() ([]string, error) {
 	}
 
 	return result, nil
+}
+
+func (g *Generator) CountUniqueCombinations(pattern, patternChar, alphanumeric string) int {
+	// Count occurrences of the pattern character
+	occurrences := strings.Count(g.Pattern, g.PatternCharacter)
+
+	// Get the size of the alphanumeric set
+	alphanumericSetSize := len(alphanumeric)
+
+	// Calculate the number of combinations: alphanumericSetSize^occurrences
+	combinations := 1
+	for i := 0; i < occurrences; i++ {
+		combinations *= alphanumericSetSize
+	}
+
+	return combinations
 }
 
 func (g *Generator) calculateLengths() []int {

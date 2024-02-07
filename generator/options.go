@@ -1,4 +1,4 @@
-package coupon
+package generator
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ var (
 type Option func(*Generator) error
 
 // SetLength sets the length of the code
-func SetMinimumLength(length uint16) Option {
+func SetMinimumLength(length uint32) Option {
 	return func(g *Generator) error {
 		if length == 0 {
 			length = numberOfChar(g.Pattern, patternChar)
@@ -39,8 +39,8 @@ func SetPatternDivider(patternDivider string) Option {
 	}
 }
 
-// SetCount sets the count of the code
-func SetCount(count uint16) Option {
+// SetGenerateCount sets the count of the code
+func SetGenerateCount(count uint32) Option {
 	return func(g *Generator) error {
 		if count == 0 {
 			return ErrInvalidCount

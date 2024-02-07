@@ -1,4 +1,4 @@
-package coupon
+package generator
 
 import (
 	"strings"
@@ -12,10 +12,47 @@ func TestDefault(t *testing.T) {
 	}
 }
 
+func TestCountUniqueCombinations(t *testing.T) {
+	// Initialize common variables for tests
+	numbers := "0123456789"
+	alphabetic := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	alphanumeric := numbers + alphabetic
+	patternChar := "#"
+
+	// Define test cases
+	tests := []struct {
+		name     string
+		pattern  string
+		expected int
+	}{
+		{"No Pattern Char", "ABC-DEF", 1},
+		{"Single Pattern Char", "A#C", 36},
+		{"Two Pattern Chars", "A#B#", 1296},       // 36^2
+		{"Pattern With Divider", "#-#", 1296},     // 36^2
+		{"Complex Pattern", "A#B#-#C#D", 1679616}, // 36^4
+	}
+
+	// Execute each test
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gen, err := NewWithOptions(
+				SetPattern(tc.pattern),
+			)
+			if err != nil {
+				t.Errorf("Error creating generator: %s", err)
+			}
+			result := gen.CountUniqueCombinations(tc.pattern, patternChar, alphanumeric)
+			if result != tc.expected {
+				t.Errorf("For pattern '%s', expected %d combinations, got %d", tc.pattern, tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestNew(t *testing.T) {
 	g, _ := NewWithOptions(
 		SetMinimumLength(5),
-		SetCount(5),
+		SetGenerateCount(5),
 		SetPattern("#####-#####"),
 	)
 	if g.MinimumLength != 5 && g.Pattern != "####-####" {
@@ -55,7 +92,7 @@ func TestCheckDigit(t *testing.T) {
 func TestCreateCode(t *testing.T) {
 	g, _ := NewWithOptions(
 		SetMinimumLength(4),
-		SetCount(10000),
+		SetGenerateCount(100000),
 		SetPattern("######-######-######-######"),
 	)
 	code, err := g.Run()
@@ -82,9 +119,9 @@ func TestValidCodes(t *testing.T) {
 		options []Option
 		code    string
 	}{
-		{[]Option{}, "55G2-DHM0-50NN"},
-		{[]Option{SetCount(1), SetPattern("####-####-####-####")}, "U5H9-HKDH-8RNX-1EX7"},
-		{[]Option{SetCount(1), SetPattern("######-######-######-######")}, "WYLKQM-U35V40-9N84DA"},
+		{[]Option{}, "55GP-DHMV-50N5"},
+		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "U5HL-HKDI-8RNQ-1EXQ"},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######-######")}, "WYLKQJ-U35V4I-9N84DK"},
 		/*
 			{Default, "55g2-dhm0-50nn"},
 			{Default, "SSGZ-DHMO-SONN"},

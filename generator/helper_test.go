@@ -1,4 +1,4 @@
-package coupon
+package generator
 
 import (
 	"strings"
@@ -58,7 +58,7 @@ func TestRepeatStr(t *testing.T) {
 func TestIsFeasible(t *testing.T) {
 	tables := []struct {
 		charset, pattern string
-		count            uint16
+		count            uint32
 		wants            bool
 	}{
 		{"abcdefghijk", "##-#####-###", 10000, true},

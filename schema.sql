@@ -1,20 +1,62 @@
 -- Create the Campaigns table
 CREATE TABLE Campaigns (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    campaign_name VARCHAR(255) NOT NULL,
-    coupon_type VARCHAR(255) NOT NULL,
-    coupon_vanity_name VARCHAR(255) NOT NULL,
-    discount_type VARCHAR(50) NOT NULL,
-    discount_value DECIMAL(10, 2) NOT NULL,
-    minimum_purchase DECIMAL(10, 2) NOT NULL,
-    is_single_use BOOLEAN NOT NULL,
-    usage_limit INT NOT NULL,
-    expire_after_days INT NOT NULL,
-    expire_after_hours INT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    is_active BOOLEAN NOT NULL
+    CampaignID UUID PRIMARY KEY,
+    IsActive BOOLEAN NOT NULL,
+    StartDate DATETIME NOT NULL,
+    EndDate DATETIME NOT NULL
 );
+
+CREATE TABLE CouponConfigs (
+    CouponConfigID INT AUTO_INCREMENT PRIMARY KEY,
+    CampaignID UUID NOT NULL,
+    CouponType ENUM('VanityCode', 'ReferralCode', 'PromoCode', 'LoyaltyCode') NOT NULL,
+    CouponPrefix VARCHAR(255),
+    CouponSuffix VARCHAR(255),
+    CouponPattern VARCHAR(255),
+    CouponDivider VARCHAR(255),
+    CouponCharacterSet VARCHAR(255),
+    CouponCount INT,
+    CouponMinimumLength INT,
+    FOREIGN KEY (CampaignID) REFERENCES Campaigns(CampaignID)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_coupon_type ON CouponConfigs (CouponType);
+CREATE INDEX idx_coupon_campaign ON CouponConfigs (CampaignID);
+
+CREATE TABLE ReferralConfigs (
+    ReferralConfigID INT AUTO_INCREMENT PRIMARY KEY,
+    CampaignID UUID NOT NULL,
+    GiveReferrerDiscount BOOLEAN,
+    ReferrerDiscountType ENUM('Percentage', 'FixedAmount', 'Other') NULL,
+    ReferrerDiscount FLOAT,
+    ReferrerSku VARCHAR(255),
+    GiveRefereeDiscount BOOLEAN,
+    RefereeDiscountType ENUM('Percentage', 'FixedAmount', 'Other') NULL,
+    RefereeDiscount FLOAT,
+    RefereeSku VARCHAR(255),
+    FOREIGN KEY (CampaignID) REFERENCES Campaigns(CampaignID)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_referral_campaign ON ReferralConfigs (CampaignID);
+
+CREATE TABLE LoyaltyConfigs (
+    LoyaltyConfigID INT AUTO_INCREMENT PRIMARY KEY,
+    CampaignID UUID NOT NULL,
+    RequirePreviousPurchase BOOLEAN,
+    RequiredPreviousPurchaseAmount FLOAT,
+    RequiredPreviousPurchaseAmountWithinUnit ENUM('Day', 'Month', 'Year'),
+    RequiredPreviousPurchaseAmountWithinLength INT,
+    RequirePreviousSubscription BOOLEAN,
+    RequirePreviousSubscriptionWithinUnit ENUM('Day', 'Month', 'Year'),
+    RequirePreviousSubscriptionWithinLength INT,
+    RequireCurrentSubscription BOOLEAN,
+    RequireCurrentSubscriptionLengthUnit ENUM('Day', 'Month', 'Year'),
+    RequireCurrentSubscriptionLength INT,
+    FOREIGN KEY (CampaignID) REFERENCES Campaigns(CampaignID)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_loyalty_campaign ON LoyaltyConfigs (CampaignID);
+
 
 -- Create the Coupons table
 CREATE TABLE Coupons (
