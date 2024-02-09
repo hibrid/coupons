@@ -2,7 +2,6 @@ package campaign
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,75 +62,78 @@ type CampaignConfig struct {
 }
 
 // Assuming uuid, json, and time packages are imported correctly above
-
 func (c *CampaignConfig) Validate() error {
-
-	// you can't create a campaign in the past
+	// You can't create a campaign in the past
 	if c.StartDate.Before(time.Now()) {
-		return errors.New("start date cannot be in the past")
+		return &DateError{"start date cannot be in the past"}
 	}
 
-	// you can't create a campaign that end in the past
+	// You can't create a campaign that ends in the past
 	if c.EndDate.Before(time.Now()) {
-		return errors.New("end date cannot be in the past")
+		return &DateError{"end date cannot be in the past"}
 	}
 
-	// if we allow on demand and pregenerate, we need to ensure that the availability count is greater than 0
+	// Check for valid usage limit
+	if c.UsageLimit < 0 {
+		return &LimitError{"usage limit cannot be negative"}
+	}
+
+	// If we allow on-demand and pregenerate, we need to ensure that the availability count is greater than 0
 	if c.AllowOnDemandCoupons && c.PregenerateCoupons && c.AvailabilityCount <= 0 {
-		return errors.New("availability count must be greater than 0 if pregenerating coupons and allowing on demand coupons")
+		return &ValidationError{"availability count must be greater than 0 if pregenerating coupons and allowing on-demand coupons"}
 	}
 
-	// if we allow on demand coupons, we need and we pregenerate coupons, we need to ensure it lines up with redeemed count
-	if c.AllowOnDemandCoupons && c.PregenerateCoupons && c.RedeemedCount+c.AvailabilityCount < c.UsageLimit {
-		return errors.New("availability count and redeemed count must be less than usage limit if pregenerating coupons and allowing on demand coupons")
+	// If we allow on-demand coupons and pregenerate coupons, we need to ensure it lines up with redeemed count
+	if c.AllowOnDemandCoupons && c.PregenerateCoupons && c.RedeemedCount+c.AvailabilityCount >= c.UsageLimit {
+		return &ValidationError{"availability count and redeemed count must be less than usage limit if pregenerating coupons and allowing on-demand coupons"}
 	}
 
-	// validate that pregenerated coupons are available
+	// Validate that pregenerated coupons are available
 	if c.PregenerateCoupons && c.AvailabilityCount <= 0 {
-		return errors.New("availability count must be greater than 0 if pregenerating coupons")
+		return &ValidationError{"availability count must be greater than 0 if pregenerating coupons"}
 	}
 
-	// validate that usage limit is greater than or equal to redeemed count
+	// Validate that usage limit is greater than or equal to redeemed count
 	if c.UsageLimit < c.RedeemedCount {
-		return errors.New("usage limit must be greater than or equal to redeemed count")
+		return &LimitError{"usage limit must be greater than or equal to redeemed count"}
 	}
 
 	if !c.IsActive() {
-		return errors.New("campaign is not active")
+		return &ValidationError{"campaign is not active"}
 	}
 	// Check if the campaign ID is valid
 	if c.ID == uuid.Nil {
-		return errors.New("campaign ID cannot be empty")
+		return &ValidationError{"campaign ID cannot be empty"}
 	}
 
 	// Check if campaign dates are valid
 	if !c.StartDate.Before(c.EndDate) {
-		return errors.New("start date must be before end date")
-	}
-
-	// Check if the availability count is valid
-	if c.AvailabilityCount < 0 {
-		return errors.New("availability count cannot be negative")
+		return &DateError{"start date must be before end date"}
 	}
 
 	// Check if CampaignType is within the valid range
 	if c.CampaignType < CampaignTypeUnknown || c.CampaignType > maxCampaignType {
-		return errors.New("invalid campaign type")
-	}
-
-	// If pregenerateCoupons is true, ensure that AvailabilityCount is greater than 0
-	if c.PregenerateCoupons && c.AvailabilityCount <= 0 {
-		return errors.New("availability count must be greater than 0 if pregenerating coupons")
+		return &CampaignTypeError{"invalid campaign type"}
 	}
 
 	// Check for valid usage limits if IsSingleUse is false
 	if !c.IsSingleUse && c.UsageLimit <= 1 {
-		return errors.New("usage limit must be greater than 1 if coupons are not single use")
+		return &LimitError{"usage limit must be greater than 1 if coupons are not single use"}
+	}
+
+	// Check for valid usage limits if IsSingleUse is true
+	if c.IsSingleUse && c.UsageLimit != 1 {
+		return &LimitError{"usage limit must be 1 if coupons are single use"}
+	}
+
+	// Check for valid redeemed count
+	if c.RedeemedCount < 0 {
+		return &LimitError{"redeemed count cannot be negative"}
 	}
 
 	// Check for valid limit per user
 	if c.LimitPerUser < 0 {
-		return errors.New("limit per user cannot be negative")
+		return &LimitError{"limit per user cannot be negative"}
 	}
 
 	// Add any additional checks as necessary, for example, validating JSON fields with schema or ensuring values are within expected ranges
