@@ -34,13 +34,15 @@ func (b *BOGODiscountStrategy) SetCampaignConfig(config *campaign.CampaignConfig
 
 }
 
-func (b *BOGODiscountStrategy) ValidateInputs() bool {
-	// Placeholder validation logic
-	b.isValid = true // Assuming validation passes for this example
+// Adjust BOGODiscountStrategy methods to use CampaignData interface
+func (b *BOGODiscountStrategy) ValidateInputs(data strategy.CampaignData) bool {
+	// Use data through the CampaignData interface
+	_, _, isActive := data.GetCampaignDetails()
+	b.isValid = isActive // Simplified example logic
 	return b.isValid
 }
 
-func (b *BOGODiscountStrategy) ApplyDiscount() {
+func (b *BOGODiscountStrategy) ApplyDiscount(data strategy.CampaignData) {
 	if !b.isValid {
 		return // Ensure discount logic is only executed if inputs are valid
 	}
