@@ -28,6 +28,15 @@ var (
 	ErrPatternIsNotMatch = errors.New("pattern is not match with the length value")
 )
 
+type GeneratorInterface interface {
+	Run() ([]string, error)
+	CountUniqueCombinations(pattern, patternChar, alphanumeric string) int
+	Validate(code string) (string, error)
+}
+
+// Ensure Generator implements GeneratorInterface at compile time
+var _ GeneratorInterface = &Generator{}
+
 // initialize random seed
 func init() {
 	//rand.Seed(time.Now().UnixNano())
@@ -145,9 +154,16 @@ func (g *Generator) one() string {
 		}
 	}
 
-	suffix := g.Suffix
+	// prepend prefix and append suffix to parts
+	if g.Prefix != "" {
+		parts = append([]string{g.Prefix}, parts...)
+	}
 
-	return strings.Join(parts, g.PatternDivider) + suffix
+	if g.Suffix != "" {
+		parts = append(parts, g.Suffix)
+	}
+
+	return strings.Join(parts, g.PatternDivider)
 }
 
 func (g *Generator) Validate(code string) (string, error) {
@@ -159,13 +175,28 @@ func (g *Generator) Validate(code string) (string, error) {
 
 	// remove invalid characters
 	code = removeInvalidRe.ReplaceAllLiteralString(code, "")
+	tmp := code
+	if g.Prefix != "" {
+		prefix := strings.ToUpper(g.Prefix)
+		if !strings.HasPrefix(tmp, prefix) {
+			return tmp, fmt.Errorf("prefix %s not found", g.Prefix)
+		}
+		tmp = strings.TrimPrefix(tmp, prefix)
+	}
+
+	if g.Suffix != "" {
+		suffix := strings.ToUpper(g.Suffix)
+		if !strings.HasSuffix(tmp, suffix) {
+			return tmp, fmt.Errorf("suffix %s not found", g.Suffix)
+		}
+		tmp = strings.TrimSuffix(tmp, suffix)
+	}
 
 	// convert special letters to numbers
 	//code = convertSpecialLetters(code)
 
 	// split into parts
 	parts := []string{}
-	tmp := code
 	for _, length := range partLengths {
 		max := length
 		if max > len(tmp) {
@@ -176,7 +207,17 @@ func (g *Generator) Validate(code string) (string, error) {
 	}
 
 	// join with separator (shouldn't we test that)
-	code = strings.Join(parts, g.PatternDivider)
+	allParts := parts
+	// prepend prefix and append suffix to parts
+	if g.Prefix != "" {
+		allParts = append([]string{g.Prefix}, allParts...)
+	}
+
+	if g.Suffix != "" {
+		allParts = append(allParts, g.Suffix)
+	}
+
+	code = strings.Join(allParts, g.PatternDivider)
 
 	if len(parts) != len(partLengths) {
 		return code, fmt.Errorf("wrong number of parts (%d)", len(parts))

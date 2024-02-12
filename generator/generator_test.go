@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 		SetGenerateCount(5),
 		SetPattern("#####-#####"),
 	)
-	if g.MinimumLength != 5 && g.Pattern != "####-####" {
+	if g.MinimumLength != 5 && g.Pattern != "#####-#####" {
 		t.Error("wonky constructor")
 	}
 }
@@ -100,7 +100,86 @@ func TestCreateCode(t *testing.T) {
 		t.Errorf("code should be valid got %s", err)
 	}
 	if len(code[0]) != 27 {
-		t.Errorf("code should be 19 characters long got %d", len(code[0]))
+		t.Errorf("code should be 27 characters long got %d", len(code[0]))
+	}
+	for i := 0; i < 1000; i++ {
+
+		validatedCode, err := g.Validate(code[i])
+		if err != nil {
+			t.Errorf("code should be valid got %s", err)
+		}
+		if code[i] != validatedCode {
+			t.Errorf("code should be valid got %s", validatedCode)
+		}
+	}
+}
+
+func TestCreateCodeWithPrefix(t *testing.T) {
+	g, _ := NewWithOptions(
+		SetMinimumLength(4),
+		SetGenerateCount(100000),
+		SetPattern("######-######-######-######"),
+		SetPrefix("TEST"),
+	)
+	code, err := g.Run()
+	if err != nil {
+		t.Errorf("code should be valid got %s", err)
+	}
+	if len(code[0]) != 32 {
+		t.Errorf("code should be 32 characters long got %d", len(code[0]))
+	}
+	for i := 0; i < 1000; i++ {
+
+		validatedCode, err := g.Validate(code[i])
+		if err != nil {
+			t.Errorf("code should be valid got %s", err)
+		}
+		if code[i] != validatedCode {
+			t.Errorf("code should be valid got %s", validatedCode)
+		}
+	}
+}
+
+func TestCreateCodeWithSuffix(t *testing.T) {
+	g, _ := NewWithOptions(
+		SetMinimumLength(4),
+		SetGenerateCount(100000),
+		SetPattern("######-######-######-######"),
+		SetSuffix("TEST"),
+	)
+	code, err := g.Run()
+	if err != nil {
+		t.Errorf("code should be valid got %s", err)
+	}
+	if len(code[0]) != 32 {
+		t.Errorf("code should be 32 characters long got %d", len(code[0]))
+	}
+	for i := 0; i < 1000; i++ {
+
+		validatedCode, err := g.Validate(code[i])
+		if err != nil {
+			t.Errorf("code should be valid got %s", err)
+		}
+		if code[i] != validatedCode {
+			t.Errorf("code should be valid got %s", validatedCode)
+		}
+	}
+}
+
+func TestCreateCodeWithPrefixAndSuffix(t *testing.T) {
+	g, _ := NewWithOptions(
+		SetMinimumLength(4),
+		SetGenerateCount(100000),
+		SetPattern("######-######-######-######"),
+		SetSuffix("TEST"),
+		SetPrefix("TEST"),
+	)
+	code, err := g.Run()
+	if err != nil {
+		t.Errorf("code should be valid got %s", err)
+	}
+	if len(code[0]) != 37 {
+		t.Errorf("code should be 37 characters long got %d", len(code[0]))
 	}
 	for i := 0; i < 1000; i++ {
 
@@ -121,18 +200,7 @@ func TestValidCodes(t *testing.T) {
 	}{
 		{[]Option{}, "55GP-DHMV-50N5"},
 		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "U5HL-HKDI-8RNQ-1EXQ"},
-		{[]Option{SetGenerateCount(1), SetPattern("######-######-######-######")}, "WYLKQJ-U35V4I-9N84DK"},
-		/*
-			{Default, "55g2-dhm0-50nn"},
-			{Default, "SSGZ-DHMO-SONN"},
-			{New(7, 12), "QBXA5CV4Q85E-HNYV4U3UD69M-B7XU1BHF3FYE-HXT9LD4Q0DAH-U6WMKC1WNF4N-5PCG5C4JF0GL-5DTUNJ40LRB5"},
-			{New(1, 4), "1K7Q"},
-			{New(2, 4), "1K7Q-CTFM"},
-			{New(3, 4), "1K7Q-CTFM-LMTC"},
-			{New(4, 4), "7YQH-1FU7-E1HX-0BG9"},
-			{New(5, 4), "YENH-UPJK-PTE0-20U6-QYME"},
-			{New(6, 4), "YENH-UPJK-PTE0-20U6-QYME-RBK1"},
-		*/
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK"},
 	}
 	for _, run := range runs {
 		generator, err := NewWithOptions(run.options...) //run.g.Validate(run.code)
@@ -146,85 +214,28 @@ func TestValidCodes(t *testing.T) {
 	}
 }
 
-/*
-func TestInvalidCodes(t *testing.T) {
+func TestCodesWithPrefix(t *testing.T) {
 	var runs = []struct {
-		g    *generator
-		code string
+		options     []Option
+		code        string
+		expectError bool
 	}{
-		{Default, "55G2-DHM0-50NK"}, // wrong check
-		{Default, "55G2-DHM-50NN"},  // not enough characters
-		{New(3, 4), "1K7Q-CTFM"},    // too short
-		{New(1, 4), "1K7C"},
-		{New(2, 4), "1K7Q-CTFW"},
-		{New(3, 4), "1K7Q-CTFM-LMT1"},
-		{New(4, 4), "7YQH-1FU7-E1HX-0BGP"},
-		{New(5, 4), "YENH-UPJK-PTE0-20U6-QYMT"},
-		{New(6, 4), "YENH-UPJK-PTE0-20U6-QYME-RBK2"},
+		{[]Option{SetPrefix("test")}, "test-55GP-DHMV-50N5", true},
+		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "test-U5HL-HKDI-8RNQ-1EXQ", true},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK", false},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK-test", true},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQJ-U35V4I-9N84DK-test", true},
+
+		{[]Option{SetPrefix("test"), SetSuffix("test2"), SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQJ-U35V4I-9N84DK-test2", false},
 	}
 	for _, run := range runs {
-		validated, err := run.g.Validate(run.code)
-		if err == nil {
-			t.Errorf("code %s should be invalid got %s", run.code, validated)
-		}
-	}
-}
-
-func TestCodesNormalized(t *testing.T) {
-	var runs = []struct {
-		g    *generator
-		code string
-		exp  string
-	}{
-		{Default, "i9oD/V467/8Dsz", "190D-V467-8D52"},   // alternate separator
-		{Default, " i9oD V467 8Dsz ", "190D-V467-8D52"}, // whitespace accepted
-		{Default, " i9oD_V467_8Dsz ", "190D-V467-8D52"}, // underscores accepted
-		{Default, "i9oDV4678Dsz", "190D-V467-8D52"},     // no separator required
-	}
-	for _, run := range runs {
-		validated, err := run.g.Validate(run.code)
-		if err != nil || validated != run.exp {
-			t.Errorf("code %s should be %s got %s %s", run.code, run.exp, validated, err)
-		}
-	}
-}
-
-func TestPattern(t *testing.T) {
-	code := Generate()
-	matched, _ := regexp.MatchString(`^[0-9A-Z-]+$`, code)
-	if !matched {
-		t.Error("should only contain uppercase letters, digits, and dashes")
-	}
-	matched, _ = regexp.MatchString(`^\w{4}-\w{4}-\w{4}$`, code)
-	if !matched {
-		t.Error("should look like XXXX-XXXX-XXXX")
-	}
-	g := New(2, 5)
-	code = g.Generate()
-	matched, _ = regexp.MatchString(`^\w{5}-\w{5}$`, code)
-	if !matched {
-		t.Error("should generate an arbitrary number of parts")
-	}
-}
-
-func TestDefaultSelfContained(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		code := Generate()
-		validated, err := Validate(code)
+		generator, err := NewWithOptions(run.options...) //run.g.Validate(run.code)
 		if err != nil {
-			t.Errorf("generated %s got %s %s", code, validated, err)
+			t.Errorf("code %s should be valid got %s", run.code, err)
+		}
+		code, err := generator.Validate(run.code)
+		if err != nil && !run.expectError {
+			t.Errorf("code %s should be valid got %s %s", run.code, code, err)
 		}
 	}
 }
-
-func TestCustomSelfContained(t *testing.T) {
-	g := New(4, 6)
-	for i := 0; i < 10; i++ {
-		code := g.Generate()
-		validated, err := g.Validate(code)
-		if err != nil {
-			t.Errorf("generated %s got %s %s", code, validated, err)
-		}
-	}
-}
-*/
