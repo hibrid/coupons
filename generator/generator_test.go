@@ -122,6 +122,37 @@ func TestSecureCheckDigit(t *testing.T) {
 	}
 }
 
+func TestSecureCheckDigitNonZero(t *testing.T) {
+	var runs = []struct {
+		code string
+		part int
+	}{
+		{"ASD3", 1},
+		{"ZPMU", 2}, // same as 2PMR
+		{"2PMU", 2},
+		{"4GGV", 3},
+		{"GUXJ", 4},
+		{"0LJS", 1},
+		{"OLJS", 1}, // same as 0LJW
+		{"W8MS", 2},
+		{"XXMV", 3},
+		{"7TVQZ", 1},
+		{"PHN52", 2},
+		{"5BD7M", 3},
+
+		{"23ERBR", 1},
+		{"1R1N4F", 2},
+		{"F11MHO", 3},
+		{"3U00FX", 4},
+	}
+	for _, run := range runs {
+		check := secureCheckCharacter(run.code[:len(run.code)-1], run.part, 5)
+		if !strings.HasSuffix(run.code, strings.ToUpper(check)) {
+			t.Errorf("check digit failed for %s got %s", run.code, check)
+		}
+	}
+}
+
 func TestCreateCode(t *testing.T) {
 	g, _ := NewWithOptions(
 		SetMinimumLength(4),

@@ -87,6 +87,13 @@ type CampaignConfig struct {
 
 	CouponConfig coupon.CouponConfig // Embedded coupon configuration
 
+	Cart *common.Cart // Embedded cart
+
+}
+
+func (c *CampaignConfig) GetCart() *common.Cart {
+	// Return cart items for the campaign
+	return c.Cart
 }
 
 // CreateCampaign validates and creates a new campaign, optionally starting a new transaction
@@ -119,6 +126,14 @@ func (c *CampaignConfig) CreateCampaign(dbTrans *DBTransaction) error {
 func (c *CampaignConfig) GetCampaignDetails() (startDate, endDate string, isActive bool) {
 	// Return necessary details from the CampaignConfig
 	return c.StartDate.String(), c.EndDate.String(), c.IsCampaignActive
+}
+
+func (c *CampaignConfig) GetStartDate() string {
+	return c.StartDate.String()
+}
+
+func (c *CampaignConfig) GetEndDate() string {
+	return c.EndDate.String()
 }
 
 // Method to set the discount strategy

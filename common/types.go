@@ -2,95 +2,79 @@ package common
 
 import "errors"
 
-type BillingPeriod int
+type TimeUnit int
 
 const (
-	BillingPeriodUnknown BillingPeriod = iota // Default value, represents an undefined billing period
-	BillingPeriodDay                          // Represents a daily billing period
-	BillingPeriodWeek                         // Represents a weekly billing period
-	BillingPeriodMonth                        // Represents a monthly billing period
-	BillingPeriodYear                         // Represents an annual billing period
+	TimePeriodUnknown TimeUnit = iota // Default value, represents an undefined billing period
+	TimePeriodDay                     // Represents a daily billing period
+	TimePeriodWeek                    // Represents a weekly billing period
+	TimePeriodMonth                   // Represents a monthly billing period
+	TimePeriodYear                    // Represents an annual billing period
 )
 
 const (
-	BillingPeriodHourly     BillingPeriod = iota // Represents an hourly billing period
-	BillingPeriodDaily                           // Represents a daily billing period
-	BillingPeriodWeekly                          // Represents a weekly billing period
-	BillingPeriodBiWeekly                        // Represents a bi-weekly billing period
-	BillingPeriodThirtyDays                      // Represents a 30-day billing period
-	BillingPeriodMonthly                         // Represents a monthly billing period
-	BillingPeriodQuarterly                       // Represents a quarterly billing period
-	BillingPeriodBiAnnual                        // Represents a bi-annual billing period
-	BillingPeriodAnnual                          // Represents an annual billing period
-	BillingPeriodBiennial                        // Represents a biennial billing period
-	BillingPeriodNoBilling                       // Represents no billing period
+	TimePeriodHourly     TimeUnit = iota // Represents an hourly billing period
+	TimePeriodDaily                      // Represents a daily billing period
+	TimePeriodWeekly                     // Represents a weekly billing period
+	TimePeriodBiWeekly                   // Represents a bi-weekly billing period
+	TimePeriodThirtyDays                 // Represents a 30-day billing period
+	TimePeriodMonthly                    // Represents a monthly billing period
+	TimePeriodQuarterly                  // Represents a quarterly billing period
+	TimePeriodBiAnnual                   // Represents a bi-annual billing period
+	TimePeriodAnnual                     // Represents an annual billing period
+	TimePeriodBiennial                   // Represents a biennial billing period
+	TimePeriodNoBilling                  // Represents no billing period
 )
 
-func (bp BillingPeriod) String() string {
+func (bp TimeUnit) String() string {
 	switch bp {
-	case BillingPeriodHourly:
+	case TimePeriodHourly:
 		return "Hourly"
-	case BillingPeriodDaily:
+	case TimePeriodDaily:
 		return "Daily"
-	case BillingPeriodWeekly:
+	case TimePeriodWeekly:
 		return "Weekly"
-	case BillingPeriodBiWeekly:
+	case TimePeriodBiWeekly:
 		return "BiWeekly"
-	case BillingPeriodThirtyDays:
+	case TimePeriodThirtyDays:
 		return "ThirtyDays"
-	case BillingPeriodMonthly:
+	case TimePeriodMonthly:
 		return "Monthly"
-	case BillingPeriodQuarterly:
+	case TimePeriodQuarterly:
 		return "Quarterly"
-	case BillingPeriodBiAnnual:
+	case TimePeriodBiAnnual:
 		return "BiAnnual"
-	case BillingPeriodAnnual:
+	case TimePeriodAnnual:
 		return "Annual"
-	case BillingPeriodBiennial:
+	case TimePeriodBiennial:
 		return "Biennial"
-	case BillingPeriodNoBilling:
+	case TimePeriodNoBilling:
 		return "NoBilling"
 	default:
 		return "Unknown"
 	}
 }
 
-var stringToBillingPeriod = map[string]BillingPeriod{
-	"Hourly":     BillingPeriodHourly,
-	"Daily":      BillingPeriodDaily,
-	"Weekly":     BillingPeriodWeekly,
-	"BiWeekly":   BillingPeriodBiWeekly,
-	"ThirtyDays": BillingPeriodThirtyDays,
-	"Monthly":    BillingPeriodMonthly,
-	"Quarterly":  BillingPeriodQuarterly,
-	"BiAnnual":   BillingPeriodBiAnnual,
-	"Annual":     BillingPeriodAnnual,
-	"Biennial":   BillingPeriodBiennial,
-	"NoBilling":  BillingPeriodNoBilling,
+var stringToTimePeriod = map[string]TimeUnit{
+	"Hourly":     TimePeriodHourly,
+	"Daily":      TimePeriodDaily,
+	"Weekly":     TimePeriodWeekly,
+	"BiWeekly":   TimePeriodBiWeekly,
+	"ThirtyDays": TimePeriodThirtyDays,
+	"Monthly":    TimePeriodMonthly,
+	"Quarterly":  TimePeriodQuarterly,
+	"BiAnnual":   TimePeriodBiAnnual,
+	"Annual":     TimePeriodAnnual,
+	"Biennial":   TimePeriodBiennial,
+	"NoBilling":  TimePeriodNoBilling,
 }
 
-func ConvertStringToBillingPeriod(s string) (BillingPeriod, error) {
-	if bp, ok := stringToBillingPeriod[s]; ok {
+func ConvertStringToTimePeriod(s string) (TimeUnit, error) {
+	if bp, ok := stringToTimePeriod[s]; ok {
 		return bp, nil
 	}
-	return BillingPeriodUnknown, errors.New("invalid billing period")
+	return TimePeriodUnknown, errors.New("invalid billing period")
 }
-
-/*
-const (
-	BillingPeriodHourly     BillingPeriod = "HOURLY"
-	BillingPeriodDaily      BillingPeriod = "DAILY"
-	BillingPeriodWeekly     BillingPeriod = "WEEKLY"
-	BillingPeriodBiWeekly   BillingPeriod = "BIWEEKLY"
-	BillingPeriodThirtyDays BillingPeriod = "THIRTY_DAYS"
-	BillingPeriodMonthly    BillingPeriod = "MONTHLY"
-	BillingPeriodQuarterly  BillingPeriod = "QUARTERLY"
-	BillingPeriodBiAnnual   BillingPeriod = "BIANNUAL"
-	BillingPeriodAnnual     BillingPeriod = "ANNUAL"
-	BillingPeriodBiennial   BillingPeriod = "BIENNIAL"
-	BillingPeriodNoBilling  BillingPeriod = "NO_BILLING_PERIOD"
-)
-*/
 
 type CouponDiscountType int
 

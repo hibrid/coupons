@@ -3,12 +3,12 @@ package recurring
 import "github.com/hibrid/coupons/common"
 
 type TrialPeriodDiscountConfig struct {
-	TrialPeriodUnit   common.BillingPeriod
+	TrialPeriodUnit   common.TimeUnit
 	TrialPeriodLength int
 	PostTrialPricing  float64
 }
 
-func (t *TrialPeriodDiscountConfig) GetDurationUnit() common.BillingPeriod {
+func (t *TrialPeriodDiscountConfig) GetDurationUnit() common.TimeUnit {
 	return t.TrialPeriodUnit
 }
 
