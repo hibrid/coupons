@@ -11,7 +11,7 @@ var (
 
 func hasBadWord(code string) bool {
 	for _, badword := range badwords {
-		if strings.Contains(code, badword) {
+		if strings.Contains(strings.ToUpper(code), badword) {
 			return true
 		}
 	}

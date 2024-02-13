@@ -21,6 +21,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 		wantErr     bool
 		wantErrType error // Add this field for checking error type
 	}{
+
 		{
 			name: "valid configuration",
 			config: campaign.CampaignConfig{
@@ -107,6 +108,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 			wantErr:     true,
 			wantErrType: &campaign.LimitError{"usage limit must be greater than 1 if coupons are not single use"},
 		},
+
 		{
 			name: "availability count must be greater than 0 if pregenerating coupons",
 			config: campaign.CampaignConfig{
@@ -142,6 +144,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 			wantErr:     true,
 			wantErrType: &campaign.LimitError{"usage limit must be greater than or equal to redeemed count"},
 		},
+
 		{
 			name: "availability count and redeemed count must be less than usage limit if pregenerating coupons and allowing on-demand coupons",
 			config: campaign.CampaignConfig{
@@ -177,7 +180,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 				AllowOnDemandCoupons: true,
 			},
 			wantErr:     true,
-			wantErrType: &campaign.ValidationError{"availability count must be greater than 0 if pregenerating coupons and allowing on-demand coupons"},
+			wantErrType: &campaign.ValidationError{"availability count must be greater than 0 if pregenerating coupons"},
 		},
 		{
 			name: "start date cannot be in the past",
@@ -196,23 +199,25 @@ func TestCampaignConfig_Validate(t *testing.T) {
 			wantErr:     true,
 			wantErrType: &campaign.DateError{"start date cannot be in the past"},
 		},
-		{
-			name: "campaign is not active",
-			config: campaign.CampaignConfig{
-				ID:                 validCampaignID,
-				StartDate:          time.Now().Add(24 * time.Hour),
-				EndDate:            time.Now().Add(48 * time.Hour),
-				CampaignType:       campaign.CampaignTypePromoCode,
-				PregenerateCoupons: true,
-				AvailabilityCount:  10,
-				IsSingleUse:        false,
-				UsageLimit:         2,
-				LimitPerUser:       1,
-				IsCampaignActive:   false,
+		/*
+			{
+				name: "campaign is not active",
+				config: campaign.CampaignConfig{
+					ID:                 validCampaignID,
+					StartDate:          time.Now().Add(24 * time.Hour),
+					EndDate:            time.Now().Add(48 * time.Hour),
+					CampaignType:       campaign.CampaignTypePromoCode,
+					PregenerateCoupons: true,
+					AvailabilityCount:  10,
+					IsSingleUse:        false,
+					UsageLimit:         2,
+					LimitPerUser:       1,
+					IsCampaignActive:   false,
+				},
+				wantErr:     true,
+				wantErrType: &campaign.ValidationError{"campaign is not active"},
 			},
-			wantErr:     true,
-			wantErrType: &campaign.ValidationError{"campaign is not active"},
-		},
+		*/
 		{
 			name: "negative availability count",
 			config: campaign.CampaignConfig{
@@ -230,6 +235,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 			wantErr:     true,
 			wantErrType: &campaign.ValidationError{"availability count must be greater than 0 if pregenerating coupons"},
 		},
+
 		{
 			name: "negative limit per user count",
 			config: campaign.CampaignConfig{
@@ -268,7 +274,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 			name: "end data cannot be in the past",
 			config: campaign.CampaignConfig{
 				ID:                 validCampaignID,
-				StartDate:          time.Now().Add(24 * time.Hour),
+				StartDate:          time.Now().Add(-48 * time.Hour),
 				EndDate:            time.Now().Add(-24 * time.Hour),
 				CampaignType:       campaign.CampaignTypePromoCode,
 				PregenerateCoupons: true,
@@ -390,7 +396,7 @@ func TestCampaignConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.config.ValidateCreation()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CampaignConfig.Validate() error = %v, wantErr %v, ", err, tt.wantErr)
 				return

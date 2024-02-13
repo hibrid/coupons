@@ -1,8 +1,6 @@
 package generator
 
 import (
-	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -23,9 +21,21 @@ var (
 const patternChar = "#"
 const divider = "-"
 
+type NotFeasibleError struct{ ValidationError }
+type PatternMismatchError struct{ ValidationError }
+type PrefixNotFoundError struct{ ValidationError }
+type SuffixNotFoundError struct{ ValidationError }
+type WrongNumberOfPartsError struct{ ValidationError }
+type WrongPartCheckCharacterError struct{ ValidationError }
+
+// Initialize custom error variables
 var (
-	ErrNotFeasible       = errors.New("not feasible to generate requested number of codes")
-	ErrPatternIsNotMatch = errors.New("pattern is not match with the length value")
+	ErrNotFeasible        = &NotFeasibleError{ValidationError{"not feasible to generate requested number of codes"}}
+	ErrPatternIsNotMatch  = &PatternMismatchError{ValidationError{"pattern does not match with the length value"}}
+	ErrPrefixNotFound     = &PrefixNotFoundError{ValidationError{"prefix not found"}}
+	ErrSuffixNotFound     = &SuffixNotFoundError{ValidationError{"suffix not found"}}
+	ErrWrongNumberOfParts = &WrongNumberOfPartsError{ValidationError{"wrong number of parts"}}
+	ErrWrongPartCheckChar = &WrongPartCheckCharacterError{ValidationError{"wrong part check character"}}
 )
 
 type GeneratorInterface interface {
@@ -66,6 +76,9 @@ type Generator struct {
 
 	// Pattern of the code
 	Pattern string `json:"pattern"`
+
+	// SHA256 index to use in the check character
+	CheckCharacterSHA256Index uint32 `json:"check_character_sha256_index"`
 }
 
 // Creates a new generator with options
@@ -81,12 +94,13 @@ func NewWithOptions(opts ...Option) (*Generator, error) {
 // Creates a new generator with default values
 func Default() *Generator {
 	return &Generator{
-		MinimumLength:    minLength,
-		PatternCharacter: patternChar,
-		PatternDivider:   divider,
-		Count:            minCodesCount,
-		Charset:          alphanumeric,
-		Pattern:          "####-####-####",
+		MinimumLength:             minLength,
+		PatternCharacter:          patternChar,
+		PatternDivider:            divider,
+		Count:                     minCodesCount,
+		Charset:                   alphanumeric,
+		Pattern:                   "####-####-####",
+		CheckCharacterSHA256Index: 0,
 	}
 }
 
@@ -147,7 +161,8 @@ func (g *Generator) one() string {
 		for j := 0; j < v-1; j++ {
 			code += randomChar([]byte(g.Charset))
 		}
-		check := checkCharacter(code, i+1)
+
+		check := secureCheckCharacter(code, i+1, 0)
 		parts[i] = code + check
 		if !hasBadWord(strings.Join(parts, "")) {
 			i += 1
@@ -179,7 +194,7 @@ func (g *Generator) Validate(code string) (string, error) {
 	if g.Prefix != "" {
 		prefix := strings.ToUpper(g.Prefix)
 		if !strings.HasPrefix(tmp, prefix) {
-			return tmp, fmt.Errorf("prefix %s not found", g.Prefix)
+			return tmp, ErrPrefixNotFound
 		}
 		tmp = strings.TrimPrefix(tmp, prefix)
 	}
@@ -187,13 +202,10 @@ func (g *Generator) Validate(code string) (string, error) {
 	if g.Suffix != "" {
 		suffix := strings.ToUpper(g.Suffix)
 		if !strings.HasSuffix(tmp, suffix) {
-			return tmp, fmt.Errorf("suffix %s not found", g.Suffix)
+			return tmp, ErrSuffixNotFound
 		}
 		tmp = strings.TrimSuffix(tmp, suffix)
 	}
-
-	// convert special letters to numbers
-	//code = convertSpecialLetters(code)
 
 	// split into parts
 	parts := []string{}
@@ -220,12 +232,14 @@ func (g *Generator) Validate(code string) (string, error) {
 	code = strings.Join(allParts, g.PatternDivider)
 
 	if len(parts) != len(partLengths) {
-		return code, fmt.Errorf("wrong number of parts (%d)", len(parts))
+		//fmt.Errorf("wrong number of parts (%d)", len(parts))
+		return code, ErrWrongNumberOfParts
 	}
 	for i, part := range parts {
-		check := checkCharacter(part[:len(part)-1], i+1)
+		check := secureCheckCharacter(part[:len(part)-1], i+1, int(g.CheckCharacterSHA256Index))
 		if !strings.HasSuffix(part, check) {
-			return code, fmt.Errorf("wrong part %d (%s) check character %s", i+1, part, check)
+			//fmt.Errorf("wrong part %d (%s) check character %s", i+1, part, check)
+			return code, ErrWrongPartCheckChar
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibrid/coupons/common"
+	"github.com/hibrid/coupons/coupon"
 	"github.com/hibrid/coupons/strategy"
 )
 
@@ -79,9 +80,13 @@ type CampaignConfig struct {
 	AvailabilityCount int  // How many coupons are available
 	RedeemedCount     int  // How many coupons have been redeemed
 	LimitPerUser      int  // How many times a user can use a coupon
+	SHA256Index       int  // Index to use in the check character
 
 	StrategyConfig json.RawMessage `json:"strategyConfig"`
 	Strategy       strategy.DiscountStrategy
+
+	CouponConfig coupon.CouponConfig // Embedded coupon configuration
+
 }
 
 // CreateCampaign validates and creates a new campaign, optionally starting a new transaction
@@ -205,13 +210,16 @@ func (c *CampaignConfig) ValidateCreation() error {
 
 	// Perform validations specific to campaign creation
 	validators := []func() error{
-		c.IsStartDateValid,              // Ensure start date is not in the past for new campaigns
-		c.IsEndDateValid,                // Ensure end date is not in the past
-		c.IsCampaignIDValid,             // Ensure the campaign ID is valid (though usually generated and not a common failure point)
-		c.AreDatesValid,                 // Ensure the start date is before the end date
-		c.IsUsageLimitValid,             // Validate the usage limit is not negative
-		c.IsLimitPerUserValid,           // Validate the limit per user is not negative
-		c.IsUsageLimitValidForSingleUse, // Validate the usage limit is appropriate for single/multiple use
+		c.AreDatesValid,                        // Ensure the start date is before the end date
+		c.IsEndDateValid,                       // Ensure end date is not in the past
+		c.IsStartDateValid,                     // Ensure start date is not in the past for new campaigns
+		c.IsCampaignIDValid,                    // Ensure the campaign ID is valid (though usually generated and not a common failure point)
+		c.IsUsageLimitValid,                    // Validate the usage limit is not negative
+		c.IsLimitPerUserValid,                  // Validate the limit per user is not negative
+		c.IsUsageLimitValidForSingleUse,        // Validate the usage limit is appropriate for single/multiple use
+		c.IsUsageLimitSufficientForDemand,      // Validate the usage limit is sufficient for on-demand coupons
+		c.IsAvailabilityValidForPregeneration,  // Validate the availability count is appropriate for pregenerated coupons
+		c.IsUsageLimitGreaterThanRedeemedCount, // Validate the usage limit is greater than the redeemed count
 	}
 
 	for _, validator := range validators {
@@ -247,10 +255,26 @@ func (c *CampaignConfig) ValidateForRedemption() error {
 		return &ValidationError{"no remaining coupons"}
 	}
 
+	// check the eligible plans for the campaign against the requested plan
+	c.IsPlanEligibleForRedemption("")
+
+	// check if the coupon has expired
+
+	// check if the coupon has been redeemed. We need to check the redeemed count against the usage limit
+
+	// check if the coupon is single use and has already been redeemed
+
+	// check if the coupon has been redeemed by the user. We need to check the user's redeemed count against the limit per user
+
 	// Depending on requirements, add other redemption-specific validations here
 	// For example, checking the redeemed count vs. usage limit, etc.
 
 	return nil
+}
+
+// check the eligible plans for the campaign against the requested plan
+func (c *CampaignConfig) IsPlanEligibleForRedemption(requestedPlan string) error {
+	return c.IsPlanEligible(requestedPlan)
 }
 
 // EvaluateCampaignForRedemption checks if a coupon can be redeemed against this campaign, updating records as necessary
@@ -368,6 +392,13 @@ func (c *CampaignConfig) IsActive() error {
 	return &ValidationError{"campaign is not active"}
 }
 
+func (c *CampaignConfig) ValidateSHA256Index() error {
+	if !c.IsSHA256IndexValid() {
+		return &ValidationError{"invalid SHA256 index"}
+	}
+	return nil
+}
+
 func (c *CampaignConfig) IsExpired() bool {
 	return time.Now().After(c.EndDate)
 }
@@ -398,22 +429,21 @@ func (c *CampaignConfig) CanServiceOnDemandRequests() bool {
 	return c.AllowOnDemandCoupons
 }
 
+func (c *CampaignConfig) IsSHA256IndexValid() bool {
+	return c.SHA256Index >= 0 && c.SHA256Index <= 31
+}
+
 func (c *CampaignConfig) Validate() error {
 	validators := []func() error{
-		c.IsStartDateValid,
-		c.IsEndDateValid,
-		c.IsUsageLimitValid,
-		c.IsAvailabilityValidForOnDemandAndPregenerate,
-		c.IsUsageLimitSufficientForDemand,
-		c.IsAvailabilityValidForPregeneration,
-		c.IsUsageLimitGreaterThanRedeemedCount,
-		c.IsCampaignIDValid,
-		c.AreDatesValid,
-		c.IsCampaignTypeValid,
-		c.IsUsageLimitValidForSingleUse,
-		c.IsRedeemedCountValid,
-		c.IsLimitPerUserValid,
-		c.IsActive,
+		c.IsCampaignIDValid,                    // common validation
+		c.AreDatesValid,                        // common validation
+		c.IsCampaignTypeValid,                  // common validation
+		c.IsUsageLimitValid,                    // common validatio - Validate the usage limit is not negative
+		c.IsUsageLimitGreaterThanRedeemedCount, // common validation
+		c.IsUsageLimitValidForSingleUse,        // common validation
+		c.IsRedeemedCountValid,                 // common validation
+		c.IsLimitPerUserValid,                  // common validation
+		c.ValidateSHA256Index,                  // common validation
 	}
 
 	for _, validator := range validators {

@@ -66,23 +66,56 @@ func TestCheckDigit(t *testing.T) {
 		part int
 	}{
 		{"ASD7", 1},
-		{"ZPMR", 2},
-		{"4GGB", 3},
-		{"GUX5", 4},
-		{"OLJW", 1},
+		{"ZPMR", 2}, // same as 2PMR
+		{"2PMR", 2},
+		{"4GGL", 3},
+		{"GUX0", 4},
+		{"0LJ2", 1},
+		{"OLJ2", 1}, // same as 0LJW
 		{"W8MY", 2},
 		{"XXMT", 3},
-		{"7TVQX", 1},
+		{"7TVQA", 1},
 		{"PHN56", 2},
-		{"5BD7X", 3},
+		{"5BD70", 3},
 
-		{"23ERBV", 1},
+		{"23ERBS", 1},
 		{"1R1N4Y", 2},
 		{"F11MHM", 3},
 		{"3U00FO", 4},
 	}
 	for _, run := range runs {
 		check := checkCharacter(run.code[:len(run.code)-1], run.part)
+		if !strings.HasSuffix(run.code, strings.ToUpper(check)) {
+			t.Errorf("check digit failed for %s got %s", run.code, check)
+		}
+	}
+}
+
+func TestSecureCheckDigit(t *testing.T) {
+	var runs = []struct {
+		code string
+		part int
+	}{
+		{"ASDJ", 1},
+		{"ZPMS", 2}, // same as 2PMR
+		{"2PMS", 2},
+		{"4GG7", 3},
+		{"GUXK", 4},
+		{"0LJ1", 1},
+		{"OLJ1", 1}, // same as 0LJW
+		{"W8M5", 2},
+		{"XXMU", 3},
+		{"7TVQE", 1},
+		{"PHN5B", 2},
+		{"5BD7Y", 3},
+
+		{"23ERBT", 1},
+		{"1R1N4R", 2},
+		{"F11MH1", 3},
+		{"3U00F9", 4},
+	}
+	for _, run := range runs {
+		check := secureCheckCharacter(run.code[:len(run.code)-1], run.part, 0)
 		if !strings.HasSuffix(run.code, strings.ToUpper(check)) {
 			t.Errorf("check digit failed for %s got %s", run.code, check)
 		}
@@ -198,9 +231,9 @@ func TestValidCodes(t *testing.T) {
 		options []Option
 		code    string
 	}{
-		{[]Option{}, "55GP-DHMV-50N5"},
-		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "U5HL-HKDI-8RNQ-1EXQ"},
-		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK"},
+		{[]Option{}, "55GR-DHME-50NT"},
+		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "U5HD-HKD8-8RNL-1EXI"},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQ9-U35V4O-9N84DY"},
 	}
 	for _, run := range runs {
 		generator, err := NewWithOptions(run.options...) //run.g.Validate(run.code)
@@ -220,13 +253,13 @@ func TestCodesWithPrefix(t *testing.T) {
 		code        string
 		expectError bool
 	}{
-		{[]Option{SetPrefix("test")}, "test-55GP-DHMV-50N5", true},
+		{[]Option{SetPrefix("test")}, "test-55GR-DHME-50NT", true},
 		{[]Option{SetGenerateCount(1), SetPattern("####-####-####-####")}, "test-U5HL-HKDI-8RNQ-1EXQ", true},
-		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK", false},
-		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQJ-U35V4I-9N84DK-test", true},
-		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQJ-U35V4I-9N84DK-test", true},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQ9-U35V4O-9N84DY", false},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "WYLKQ9-U35V4O-9N84DY-test", true},
+		{[]Option{SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQ9-U35V4O-9N84DY-test", true},
 
-		{[]Option{SetPrefix("test"), SetSuffix("test2"), SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQJ-U35V4I-9N84DK-test2", false},
+		{[]Option{SetPrefix("test"), SetSuffix("test2"), SetGenerateCount(1), SetPattern("######-######-######")}, "test-WYLKQ9-U35V4O-9N84DY-test2", false},
 	}
 	for _, run := range runs {
 		generator, err := NewWithOptions(run.options...) //run.g.Validate(run.code)

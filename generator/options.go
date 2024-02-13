@@ -1,13 +1,39 @@
 package generator
 
-import (
-	"errors"
-)
+import "fmt"
 
+// Define a base error type for validation errors
+type ValidationError struct {
+	Reason string
+}
+
+// Implement the Error() method for ValidationError
+func (e *ValidationError) Error() string {
+	return fmt.Sprintf("validation error: %s", e.Reason)
+}
+
+// Implement the Is method for comparing errors
+func (e *ValidationError) Is(target error) bool {
+	t, ok := target.(*ValidationError)
+	return ok && t.Reason == e.Reason
+}
+
+// Define specific error types for each error variable
+type ErrInvalidCountType struct{ ValidationError }
+type ErrInvalidCharsetType struct{ ValidationError }
+type ErrInvalidPatternType struct{ ValidationError }
+type ErrPrefixBadWordType struct{ ValidationError }
+type ErrSuffixBadWordType struct{ ValidationError }
+type ErrInvalidSHA256IndexType struct{ ValidationError }
+
+// Initialize the specific error variables with corresponding messages
 var (
-	ErrInvalidCount   = errors.New("invalid count, It should be greater than 0")
-	ErrInvalidCharset = errors.New("invalid charset, charset length should be greater than 0")
-	ErrInvalidPattern = errors.New("invalid pattern, pattern cannot be empty")
+	ErrInvalidCount       = &ErrInvalidCountType{ValidationError{"invalid count, It should be greater than 0"}}
+	ErrInvalidCharset     = &ErrInvalidCharsetType{ValidationError{"invalid charset, charset length should be greater than 0"}}
+	ErrInvalidPattern     = &ErrInvalidPatternType{ValidationError{"invalid pattern, pattern cannot be empty"}}
+	ErrPrefixBadWord      = &ErrPrefixBadWordType{ValidationError{"invalid prefix, prefix contains bad word"}}
+	ErrSuffixBadWord      = &ErrSuffixBadWordType{ValidationError{"invalid suffix, suffix contains bad word"}}
+	ErrInvalidSHA256Index = &ErrInvalidSHA256IndexType{ValidationError{"invalid SHA256 index, must be between 0 and 31"}}
 )
 
 type Option func(*Generator) error
@@ -63,17 +89,28 @@ func SetCharset(charset string) Option {
 
 // SetPrefix sets the prefix of the code
 func SetPrefix(prefix string) Option {
+	if !hasBadWord(prefix) {
+		return func(g *Generator) error {
+			g.Prefix = prefix
+			return nil
+		}
+	}
+
 	return func(g *Generator) error {
-		g.Prefix = prefix
-		return nil
+		return ErrPrefixBadWord
 	}
 }
 
 // SetSuffix sets the suffix of the code
 func SetSuffix(suffix string) Option {
+	if !hasBadWord(suffix) {
+		return func(g *Generator) error {
+			g.Suffix = suffix
+			return nil
+		}
+	}
 	return func(g *Generator) error {
-		g.Suffix = suffix
-		return nil
+		return ErrSuffixBadWord
 	}
 }
 
@@ -90,6 +127,17 @@ func SetPattern(pattern string) Option {
 		}
 
 		g.Pattern = pattern
+		return nil
+	}
+}
+
+// SetSHA256 index
+func SetCheckCharacterSHA256Index(sha256Index uint32) Option {
+	return func(g *Generator) error {
+		if sha256Index >= 32 {
+			return ErrInvalidSHA256Index
+		}
+		g.CheckCharacterSHA256Index = sha256Index
 		return nil
 	}
 }

@@ -15,3 +15,9 @@ func TestBadWordsPositive(t *testing.T) {
 		t.Error("BOOB should be a bad word")
 	}
 }
+
+func TestBadWordsLowerCase(t *testing.T) {
+	if !hasBadWord("Boobies") {
+		t.Error("BOOB should be a bad word")
+	}
+}
