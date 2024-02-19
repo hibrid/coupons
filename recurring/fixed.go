@@ -3,12 +3,12 @@ package recurring
 import "github.com/hibrid/coupons/common"
 
 type FixedPriceSubscriptionConfig struct {
-	FixedPriceDurationUnit   common.BillingPeriod
+	FixedPriceDurationUnit   common.TimeUnit
 	FixedPriceDurationLength int
 	FixedPrice               float64
 }
 
-func (f *FixedPriceSubscriptionConfig) GetDurationUnit() common.BillingPeriod {
+func (f *FixedPriceSubscriptionConfig) GetDurationUnit() common.TimeUnit {
 	return f.FixedPriceDurationUnit
 }
 

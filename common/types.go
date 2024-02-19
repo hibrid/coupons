@@ -1,19 +1,14 @@
 package common
 
-import "errors"
+import (
+	"errors"
+)
 
 type TimeUnit int
 
 const (
-	TimePeriodUnknown TimeUnit = iota // Default value, represents an undefined billing period
-	TimePeriodDay                     // Represents a daily billing period
-	TimePeriodWeek                    // Represents a weekly billing period
-	TimePeriodMonth                   // Represents a monthly billing period
-	TimePeriodYear                    // Represents an annual billing period
-)
-
-const (
-	TimePeriodHourly     TimeUnit = iota // Represents an hourly billing period
+	TimePeriodUnknown    TimeUnit = iota // Default value, represents an undefined billing period
+	TimePeriodHourly                     // Represents an hourly billing period
 	TimePeriodDaily                      // Represents a daily billing period
 	TimePeriodWeekly                     // Represents a weekly billing period
 	TimePeriodBiWeekly                   // Represents a bi-weekly billing period
@@ -25,6 +20,37 @@ const (
 	TimePeriodBiennial                   // Represents a biennial billing period
 	TimePeriodNoBilling                  // Represents no billing period
 )
+
+func (bp TimeUnit) IsValid() bool {
+	return bp >= TimePeriodHourly && bp <= TimePeriodNoBilling
+}
+
+func (bp TimeUnit) HourValue() int64 {
+	switch bp {
+	case TimePeriodHourly:
+		return 1
+	case TimePeriodDaily:
+		return 24
+	case TimePeriodWeekly:
+		return 24 * 7
+	case TimePeriodBiWeekly:
+		return 24 * 14
+	case TimePeriodThirtyDays:
+		return 24 * 30
+	case TimePeriodMonthly:
+		return 24 * 30
+	case TimePeriodQuarterly:
+		return 24 * 90
+	case TimePeriodBiAnnual:
+		return 24 * 365 / 2
+	case TimePeriodAnnual:
+		return 24 * 365
+	case TimePeriodBiennial:
+		return 24 * 730
+	default:
+		return 0
+	}
+}
 
 func (bp TimeUnit) String() string {
 	switch bp {
@@ -74,6 +100,37 @@ func ConvertStringToTimePeriod(s string) (TimeUnit, error) {
 		return bp, nil
 	}
 	return TimePeriodUnknown, errors.New("invalid billing period")
+}
+
+func NormalizeDuration(phaseDuration int64, phaseFromUnit, billingToUnit TimeUnit) (float64, error) {
+	var hoursPerUnit = map[TimeUnit]float64{
+		TimePeriodHourly:     1,            // 1 hour
+		TimePeriodDaily:      24,           // 24 hours in a day
+		TimePeriodWeekly:     24 * 7,       // 168 hours in a week
+		TimePeriodBiWeekly:   24 * 14,      // 336 hours in two weeks
+		TimePeriodThirtyDays: 24 * 30,      // 720 hours, assuming 30 days per month
+		TimePeriodMonthly:    24 * 30,      // 720 hours, assuming 30 days for a simplified month
+		TimePeriodQuarterly:  24 * 90,      // 2160 hours, assuming 90 days per quarter
+		TimePeriodBiAnnual:   24 * 365 / 2, // 4380 hours, assuming half a year
+		TimePeriodAnnual:     24 * 365,     // 8760 hours in a year
+		TimePeriodBiennial:   24 * 730,     // 17520 hours, for two years
+	}
+
+	fromHours, ok := hoursPerUnit[phaseFromUnit]
+	if !ok {
+		return 0, errors.New("invalid fromUnit for conversion")
+	}
+	totalHours := float64(phaseDuration) * fromHours
+
+	toHours, ok := hoursPerUnit[billingToUnit]
+	if !ok {
+		return 0, errors.New("invalid toUnit for conversion")
+	}
+
+	// Calculate the ratio of the trial or discount period to the full billing cycle.
+	ratio := totalHours / toHours
+
+	return ratio, nil
 }
 
 type CouponDiscountType int
