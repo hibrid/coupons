@@ -3,7 +3,6 @@ package common
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/shopspring/decimal"
 )
@@ -127,68 +126,47 @@ func (dp *DiscountPhase) ValidatePercentageDiscount() error {
 }
 
 func (dp *DiscountPhase) ValidateTimeBasedDiscount() error {
-	if dp.Duration <= 0 {
-		return errors.New("time-based discount must have valid duration")
+	return dp.ValidatePercentageDiscount()
+}
+
+func (dp *DiscountPhase) ValidateFixedAmountDiscount() error {
+	if dp.DiscountValue <= 0 {
+		return errors.New("fixed amount discount must be positive")
 	}
-	if dp.DurationUnit == TimePeriodUnknown {
-		return errors.New("invalid duration unit for time-based discount")
+	if dp.DurationUnit != TimePeriodUnknown {
+		return errors.New("invalid duration unit for fixed amount discount. This field should be TimePeriodUnknown")
 	}
-	if dp.Application == UnknownApplication {
-		return errors.New("invalid application for time-based discount")
+	if dp.Duration != 0 {
+		return errors.New("invalid duration for fixed amount discount. This field should be 0")
 	}
-	//if dp.ApplicableNumberOfBillingCycles <= 0 {
-	//	return errors.New("invalid number of applicable billing cycles for time-based discount")
-	//}
+	if dp.Application != OneTime && dp.Application != Recurring {
+		return errors.New("invalid application for fixed amount discount. Should be one-time or recurring")
+	}
+	if dp.ApplicableNumberOfBillingCycles <= 0 {
+		return errors.New("invalid number of applicable billing cycles for fixed amount discount")
+	}
+	if dp.ApplicableNumberOfBillingCycles > 1 && dp.Application != Recurring {
+		return errors.New("fixed amount discount can only be applied to one billing cycle for one-time application")
+	}
 	return nil
 }
 
 // SetDiscountType sets the discount type and resets the fields based on the discount type.
 func (dp *DiscountPhase) SetDiscountType(discountType DiscountType) error {
+	var err error
 	// validate the fields based on the discount type
 	// Percentage, TimeBased, or FixedAmount
 	switch discountType {
-	case Percentage:
-		return dp.ValidatePercentageDiscount()
-	case TimeBased:
-		dp.DiscountValue = 0
-		dp.DurationUnit = TimePeriodUnknown
-		dp.Application = UnknownApplication
-		dp.ApplicableNumberOfBillingCycles = 0
+	case Percentage, TimeBased:
+		if discountType == TimeBased { // if time based, set the discount value to 100 to represent a full discount for the time period
+			dp.DiscountValue = 100
+		}
+		err = dp.ValidatePercentageDiscount()
 	case FixedAmount:
-		dp.DiscountValue = 0
-		dp.DurationUnit = TimePeriodUnknown
-		dp.Duration = 0
-		dp.Application = UnknownApplication
-		dp.ApplicableNumberOfBillingCycles = 0
+		err = dp.ValidateFixedAmountDiscount()
 	}
 	dp.DiscountType = discountType
-	return nil
-}
-
-func (dp *DiscountPhase) ValidateAndReset() error {
-	switch dp.DiscountType {
-	case Percentage:
-		if dp.DiscountValue <= 0 {
-			return errors.New("percentage discount rate must be positive")
-		}
-		// Reset fields not related to percentage-based discounts
-		dp.DiscountValue = 0
-	case TimeBased:
-		if dp.Duration <= 0 || dp.DurationUnit == TimePeriodUnknown {
-			return errors.New("time-based discount must have valid duration and unit")
-		}
-		// Reset fields not related to time-based discounts
-		dp.DiscountValue = 0
-	case FixedAmount:
-		if dp.DiscountValue <= 0 {
-			return errors.New("fixed amount discount must be positive")
-		}
-		// Reset fields not related to fixed amount discounts
-		dp.DiscountValue = 0
-	default:
-		return errors.New("invalid discount type")
-	}
-	return nil
+	return err
 }
 
 type SubscriptionInfo struct {
@@ -341,50 +319,13 @@ func (c *CartItem) calculateTotalDiscountAmount() (decimal.Decimal, error) {
 	}
 
 	if c.Subscription.IsRecurring {
-		return c.calculateTotalSubscriptionDiscount()
+		return c.calculateTotalSubscriptionDiscounts()
 	} else {
 		return c.calculateNonSubscriptionDiscount()
 	}
 }
 
-func (c *CartItem) calculateTotalDiscountValue(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	var discountPerCycle decimal.Decimal
-	switch phase.DiscountType {
-	case Percentage:
-		if phase.DiscountValue > 100 {
-			return decimal.Zero, errors.New("percentage discount value cannot exceed 100")
-		}
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-		discountPerCycle = unitPrice.Mul(percentageRate)
-	default:
-		return decimal.Zero, errors.New("unsupported discount type")
-	}
-
-	// Calculate the total discount value
-	totalDiscount := discountPerCycle
-	if normalizedDurationRatio > 1 {
-		// For discounts that span multiple billing cycles
-		cycleCount := math.Ceil(normalizedDurationRatio) // Ensure we cover partial cycles as full ones
-		totalDiscount = discountPerCycle.Mul(decimal.NewFromFloat(cycleCount))
-	} else {
-		// For discounts within a single billing cycle, apply the discount ratio directly
-		totalDiscount = discountPerCycle.Mul(decimal.NewFromFloat(normalizedDurationRatio))
-	}
-
-	return totalDiscount, nil
-}
-
-func (c *CartItem) calculateTotalSubscriptionDiscount() (decimal.Decimal, error) {
+func (c *CartItem) calculateTotalSubscriptionDiscounts() (decimal.Decimal, error) {
 	totalDiscount := decimal.Zero // Assuming this starts from a base value, adjust as necessary
 
 	if c.Subscription.DiscountPhases == nil || len(c.Subscription.DiscountPhases) == 0 {
@@ -394,7 +335,7 @@ func (c *CartItem) calculateTotalSubscriptionDiscount() (decimal.Decimal, error)
 	for _, phase := range c.Subscription.DiscountPhases {
 		phaseDiscount, err := c.calculateDiscountForPhase(&phase)
 		if err != nil {
-			// Instead of continuing, we return on the first error encountered according to your revised approach
+			// Instead of continuing, we return on the first error encountered
 			return decimal.Zero, fmt.Errorf("error calculating discount for phase: %v", err)
 		}
 
@@ -412,63 +353,15 @@ func (c *CartItem) calculateTotalSubscriptionDiscount() (decimal.Decimal, error)
 	return totalDiscount, nil
 }
 
-/*
-func (c *CartItem) calculateTotalSubscriptionDiscount() (decimal.Decimal, error) {
-	totalTrialDiscount := c.calculateTotalTrialPeriodDiscount()
-	var totalSubscriptionDiscount decimal.Decimal
-	printLnDecimalToString(totalTrialDiscount, "totalTrialDiscount")
-	if c.Subscription.DiscountPhases == nil || len(c.Subscription.DiscountPhases) == 0 {
-		return totalTrialDiscount, errors.New("no discount phases found and its required for recurring subscriptions")
-	}
-	for _, phase := range c.Subscription.DiscountPhases {
-		phaseDiscount, err := c.calculatePerPhaseDiscount(phase)
-		printLnDecimalToString(phaseDiscount, "phaseDiscount")
-		// Multiply the phase discount by the number of billing cycles (duration of the phase in billing periods)
-		if phase.DurationUnit < c.Subscription.BillingPeriodUnit {
-			// does the phase duration unit multiplied by the phase duration result in a time period greater than the billing period unit?
-			normalizedRation, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-			if err != nil {
-				return decimal.Zero, err
-			}
-			// if the ratio is one then we
-			// we need to make sure that the phase duration unit is the same as the billing period unit
-			//
-			if normalizedRation < 1 {
-				totalSubscriptionDiscount = phaseDiscount
-			} else if normalizedRation == 1 {
-				totalSubscriptionDiscount = phaseDiscount.Mul(decimal.NewFromInt(int64(phase.Duration)))
-			} else if normalizedRation > 1 {
-				totalSubscriptionDiscount = phaseDiscount.Mul(decimal.NewFromFloat(normalizedRation))
-			}
-
-		}
-		//phaseDiscount = phaseDiscount.Mul(decimal.NewFromInt(int64(phase.Duration)))
-		printLnDecimalToString(phaseDiscount, "phaseDiscount") //phaseDiscount is 75
-		if err != nil {
-			return decimal.Zero, fmt.Errorf("error calculating phase %s discount: %v", phase.Description, err)
-		}
-		printLnDecimalToString(totalTrialDiscount, "totalTrialDiscount") //totalTrialDiscount is 0
-		totalTrialDiscount = totalTrialDiscount.Round(2)
-		printLnDecimalToString(totalTrialDiscount, "totalTrialDiscount") //totalTrialDiscount is 0
-		totalSubscriptionDiscount = totalSubscriptionDiscount.Round(2).Add(totalTrialDiscount.Add(phaseDiscount.Round(2)))
-		printLnDecimalToString(totalTrialDiscount, "totalTrialDiscount") //WHY IS totalTrialDiscount 75?
-	}
-
-	// Cap the total discount to not exceed the total gross amount
-
-	return totalSubscriptionDiscount, nil
-}
-*/
-
-func (c *CartItem) calculateTotalTrialPeriodDiscount() decimal.Decimal {
+func (c *CartItem) calculateTotalTrialPeriodDiscount() (decimal.Decimal, error) {
 	if c.Subscription.TrialPeriod > 0 {
 		normalizedTrialDuration, err := NormalizeDuration(int64(c.Subscription.TrialPeriod), c.Subscription.TrialPeriodUnit, c.Subscription.BillingPeriodUnit)
 		if err != nil {
-			return decimal.Zero
+			return decimal.Zero, err
 		}
-		return c.UnitPrice.Mul(decimal.NewFromInt(int64(normalizedTrialDuration)))
+		return c.UnitPrice.Mul(decimal.NewFromInt(int64(normalizedTrialDuration))), nil
 	}
-	return decimal.Zero
+	return decimal.Zero, nil
 }
 
 func (c *CartItem) calculateDiscountForPhase(phase *DiscountPhase) (decimal.Decimal, error) {
@@ -726,14 +619,28 @@ func (c *CartItem) Validate() error {
 	}
 	// range through the discount phases and validate them against the billing period unit
 	for _, phase := range c.Subscription.DiscountPhases {
-		if phase.DurationUnit == TimePeriodUnknown {
-			return errors.New("invalid duration unit for discount phase")
+		if phase.DiscountType != FixedAmount {
+			if phase.DurationUnit == TimePeriodUnknown {
+				return errors.New("invalid duration unit for discount phase")
+			}
+			if phase.Duration <= 0 {
+				return errors.New("invalid duration for discount phase")
+			}
+			if phase.DurationUnit > c.Subscription.BillingPeriodUnit {
+				return errors.New("discount phase duration unit cannot exceed billing period unit")
+			}
 		}
-		if phase.Duration <= 0 {
-			return errors.New("invalid duration for discount phase")
-		}
-		if phase.DurationUnit > c.Subscription.BillingPeriodUnit {
-			return errors.New("discount phase duration unit cannot exceed billing period unit")
+
+		// Validate discount phase based on discount type
+		switch phase.DiscountType {
+		case Percentage:
+			if err := phase.ValidatePercentageDiscount(); err != nil {
+				return err
+			}
+		case FixedAmount:
+			if err := phase.ValidateFixedAmountDiscount(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
