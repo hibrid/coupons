@@ -17,12 +17,26 @@ const (
 	FixedAmount
 )
 
+func (DiscountType DiscountType) String() string {
+	switch DiscountType {
+	case Percentage:
+		return "Percentage"
+	case TimeBased:
+		return "TimeBased"
+	case FixedAmount:
+		return "FixedAmount"
+	default:
+		return "Unknown"
+	}
+}
+
 type DiscountApplication string
 
 const (
 	UnknownApplication DiscountApplication = "unknown"
 	Recurring          DiscountApplication = "recurring"
 	Spread             DiscountApplication = "spread"
+	OneTime            DiscountApplication = "one-time"
 )
 
 type DiscountPhase struct {
@@ -33,6 +47,8 @@ type DiscountPhase struct {
 	Description                     string              `json:"description"`
 	ApplicableNumberOfBillingCycles int64               `json:"applicateNumberOfBillingCycles"` // numsber of billing cycles this is applicable to
 	Application                     DiscountApplication `json:"application"`                    // Recurring or Spread
+	Logs                            []string            `json:"logs"`
+	DiscountsPerBillingCycle        map[int64]float64   `json:"discountPerBillingCycle"`
 }
 
 func (dp *DiscountPhase) GetApplication() DiscountApplication {
@@ -376,7 +392,7 @@ func (c *CartItem) calculateTotalSubscriptionDiscount() (decimal.Decimal, error)
 	}
 
 	for _, phase := range c.Subscription.DiscountPhases {
-		phaseDiscount, err := c.calculateDiscountForPhase(phase)
+		phaseDiscount, err := c.calculateDiscountForPhase(&phase)
 		if err != nil {
 			// Instead of continuing, we return on the first error encountered according to your revised approach
 			return decimal.Zero, fmt.Errorf("error calculating discount for phase: %v", err)
@@ -455,33 +471,63 @@ func (c *CartItem) calculateTotalTrialPeriodDiscount() decimal.Decimal {
 	return decimal.Zero
 }
 
-func (c *CartItem) calculateDiscountForPhase(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice // Assuming this is the price for a single billing cycle
+func (c *CartItem) calculateDiscountForPhase(phase *DiscountPhase) (decimal.Decimal, error) {
+	unitPrice := c.UnitPrice
+
+	// Validate discount value
 	if phase.DiscountValue <= 0 {
 		return decimal.Zero, errors.New("discount value must be positive")
 	}
 
+	// correct the duration unit to the billing period unit if fixed amount
+	if phase.DiscountType == FixedAmount {
+		phase.DurationUnit = c.Subscription.BillingPeriodUnit
+		phase.Duration = phase.ApplicableNumberOfBillingCycles
+	}
+
+	// Normalize duration
 	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
 	if err != nil {
 		return decimal.Zero, err
 	}
 
-	var discount, percentageRate decimal.Decimal
+	// Log start of calculation
+	log := []string{}
 
+	log = append(log, "Start calculation:")
+	log = append(log, fmt.Sprintf("Unit Price: %s", unitPrice.String()))
+	log = append(log, fmt.Sprintf("Discount Type: %s", phase.DiscountType))
+	log = append(log, fmt.Sprintf("Normalized Duration Ratio: %f", normalizedDurationRatio))
+
+	// discounts per billing cycles
+	discounts := make(map[int64]decimal.Decimal)
+
+	// Calculate discount based on discount type
+	var discount, percentageRate decimal.Decimal
+	ValidNumberOfBilingCycles, _ := decimal.NewFromInt(phase.ApplicableNumberOfBillingCycles).Round(2).Float64()
 	switch phase.DiscountType {
-	case TimeBased:
-		// set the discountValue to 100% if the discount type is time based and fallthrough to the percentage case
-		phase.DiscountValue = 100
-		fallthrough
-	case Percentage:
+	case Percentage, TimeBased:
+		// If time based, set the discount value to 100 to represent a full discount for the time period
+		if phase.DiscountType == TimeBased {
+			phase.DiscountValue = 100
+			log = append(log, "Set Discount Value 100 because this is a TimeBased discount")
+		}
+
 		// Calculate the discount as a percentage of the unit price.
 		percentageRate = decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
 		discount = unitPrice.Mul(percentageRate)
+		discounts[1] = discount
+
+		log = append(log, fmt.Sprintf("Discount Type: %s", phase.DiscountType))
+		log = append(log, fmt.Sprintf("Percentage Rate: %s", percentageRate.String()))
+		log = append(log, fmt.Sprintf("Discount: %s", discount.String()))
 
 		if phase.Application == Recurring {
 			// Prorate the discount based on the normalized duration ratio for the first billing cycle.
 			discount = discount.Mul(decimal.NewFromFloat(normalizedDurationRatio))
-			printLnDecimalToString(discount, "discount")
+			discounts[1] = discount
+			log = append(log, fmt.Sprintf("Discount after proration: %s", discount.String()))
+
 			if normalizedDurationRatio > 1 {
 				// validate that the phase duration unit is less than or equal to the billing period unit
 				// for recurring, we want to apply a discount for each billing cycle so if normalizedDurationRatio is greater than 1
@@ -489,312 +535,104 @@ func (c *CartItem) calculateDiscountForPhase(phase DiscountPhase) (decimal.Decim
 				if phase.DurationUnit != c.Subscription.BillingPeriodUnit && phase.DurationUnit.HourValue()*phase.Duration > c.Subscription.BillingPeriodUnit.HourValue() {
 					return decimal.Zero, errors.New("phase duration unit period cannot be greater than the billing period unit for recurring discounts")
 				}
-				ValidNumberOfBilingCycles, _ := decimal.NewFromInt(phase.ApplicableNumberOfBillingCycles).Round(2).Float64()
+
 				if ValidNumberOfBilingCycles < normalizedDurationRatio {
 					// cap the normalizedDurationRatio to the number of applicable billing cycles
 					normalizedDurationRatio = ValidNumberOfBilingCycles
 				}
 				//additionalDiscount := unitPrice.Mul(percentageRate).Mul(decimal.NewFromFloat(additionalCycles))
 				discount = discount.Mul(decimal.NewFromFloat(normalizedDurationRatio)).Mul(percentageRate)
-				printLnDecimalToString(discount, "discount")
+				for i := 2; i <= int(normalizedDurationRatio); i++ {
+					discounts[int64(i)] = discount
+				}
+				log = append(log, fmt.Sprintf("Discount after recurring discount: %s", discount.String()))
 			}
 		} else if phase.Application == Spread || phase.Application == UnknownApplication || phase.Application == "" {
 			// Spread the discount evenly across the duration of the phase.
 			discount = discount.Mul(decimal.NewFromFloat(normalizedDurationRatio))
+			discounts[1] = discount
+			log = append(log, fmt.Sprintf("Discount after spreading: %s", discount.String()))
 			if normalizedDurationRatio > 1 {
-
-				ValidNumberOfBilingCycles, _ := decimal.NewFromInt(phase.ApplicableNumberOfBillingCycles).Round(2).Float64()
 				var remainingCycles float64
 				if ValidNumberOfBilingCycles < normalizedDurationRatio {
 					// cap the normalizedDurationRatio to the number of applicable billing cycles
 					remainingCycles = normalizedDurationRatio - ValidNumberOfBilingCycles
 					normalizedDurationRatio = ValidNumberOfBilingCycles
 				}
+				// discount any cycles that are beyond the allowed number of billing cycles
 				discountAdjustment := unitPrice.Mul(percentageRate).Mul(decimal.NewFromFloat(remainingCycles))
 				discount = discount.Sub(discountAdjustment)
+				discounts[1] = discount
+				log = append(log, fmt.Sprintf("Discount adjustment for remaining cycles: %s", discountAdjustment.String()))
+				log = append(log, fmt.Sprintf("Discount after adjustment: %s", discount.String()))
+				if unitPrice.LessThan(discount) && ValidNumberOfBilingCycles <= 1 {
+					discount = unitPrice
+					discounts[1] = discount
+					log = append(log, fmt.Sprintf("Discount capped at unit price: %s", discount.String()))
+				} else if unitPrice.LessThan(discount) && ValidNumberOfBilingCycles > 1 {
+					// spread the discount over the number of billing cycles that apply
+					howManyBillingCycles := discount.DivRound(unitPrice, 2)
+					accountedDiscount := 0.0
+					for i := 1; i <= int(howManyBillingCycles.IntPart()); i++ {
+						discounts[int64(i)] = unitPrice //ensures maximum discount is the unit price
+						tmpDiscount, _ := unitPrice.Round(2).Float64()
+						accountedDiscount += tmpDiscount
+						log = append(log, fmt.Sprintf("Discount capped at unit price: %s for billing cycle %d", discount.String(), i))
+					}
+					lastBillingCycle := int64(howManyBillingCycles.IntPart()) + 1
+					remainingDiscountValue := discount.Sub(decimal.NewFromFloat(accountedDiscount))
+					if !remainingDiscountValue.IsZero() {
+						discounts[lastBillingCycle] = remainingDiscountValue
+						log = append(log, fmt.Sprintf("Discount capped at unit price: %s for billing cycle %d", discount.String(), lastBillingCycle))
+					}
+				}
+
 			}
 		}
 
 	case FixedAmount:
+		if phase.Application != Recurring && phase.Application != OneTime {
+			return decimal.Zero, errors.New("fixed amount discounts must be recurring or onetime")
+		}
 		// Apply the fixed amount directly, prorated by the duration ratio if it's less than a full cycle.
 		fixedAmountDiscount := decimal.NewFromFloat(phase.DiscountValue)
+
+		if fixedAmountDiscount.GreaterThan(unitPrice) {
+			fixedAmountDiscount = unitPrice
+			log = append(log, fmt.Sprintf("Discount capped at unit price: %s", fixedAmountDiscount.String()))
+		}
+		discount = fixedAmountDiscount
+		log = append(log, fmt.Sprintf("Discount Type: %s", phase.DiscountType.String()))
+		log = append(log, fmt.Sprintf("Fixed Amount Discount: %s", fixedAmountDiscount.String()))
+
 		if phase.Application == Recurring {
-			if normalizedDurationRatio > 1 {
-				// validate that the phase duration unit is less than or equal to the billing period unit
-				// for recurring, we want to apply a discount for each billing cycle so if normalizedDurationRatio is greater than 1
-				// then the period unit must be less than or equal to the billing period unit so the discount is applied to each billing cycle
-				if phase.DurationUnit != c.Subscription.BillingPeriodUnit && phase.DurationUnit.HourValue()*phase.Duration > c.Subscription.BillingPeriodUnit.HourValue() {
-					return decimal.Zero, errors.New("phase duration unit cannot be greater than the billing period unit for recurring discounts")
-				}
-				additionalCycles := math.Floor(normalizedDurationRatio) - 1
-				if phase.ApplicableNumberOfBillingCycles > 0 {
-					// Cap the additional cycles to the specified number of billing cycles
-					additionalCycles = math.Min(additionalCycles, float64(phase.ApplicableNumberOfBillingCycles))
-				}
-				additionalDiscount := fixedAmountDiscount.Mul(decimal.NewFromFloat(additionalCycles))
-				discount = discount.Add(additionalDiscount)
+
+			for i := 1; i <= int(phase.ApplicableNumberOfBillingCycles); i++ {
+				discounts[int64(i)] = discount
 			}
-		} else if phase.Application == Spread {
-			if normalizedDurationRatio > 1 {
-				// If the phase spans multiple cycles and is spread, apply the full discount to each billing cycle and prorate the rest.
-				additionalCycles := math.Floor(normalizedDurationRatio) - 1
-				if phase.ApplicableNumberOfBillingCycles > 0 {
-					// Cap the additional cycles to the specified number of billing cycles
-					additionalCycles = math.Min(additionalCycles, float64(phase.ApplicableNumberOfBillingCycles))
-				}
-				additionalDiscount := fixedAmountDiscount.Mul(decimal.NewFromFloat(additionalCycles))
-				discount = discount.Add(additionalDiscount)
-			}
-		}
-	default:
-		return decimal.Zero, errors.New("unsupported discount type")
-	}
-
-	return discount, nil
-}
-
-/*
-func (c *CartItem) calculateDiscountForPhase(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice // Assuming this is the price for a single billing cycle
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	cycleCount := math.Ceil(normalizedDurationRatio) // Number of billing cycles covered
-
-	var totalDiscount decimal.Decimal
-	switch phase.DiscountType {
-	case Percentage:
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-		discountPerCycle := unitPrice.Mul(percentageRate)
-		printLnDecimalToString(discountPerCycle, "discountPerCycle")
-		if phase.Application == Recurring {
-			totalDiscount = discountPerCycle.Mul(decimal.NewFromFloat(cycleCount))
-		} else { // Spread
-			totalDiscount = discountPerCycle // Apply once and spread the effect if needed
-		}
-
-	case TimeBased:
-		// For simplicity, assuming time-based discounts apply a fixed rate for the duration
-		// This case might need special handling based on how time-based discounts are defined in your system
-		return decimal.Zero, errors.New("time-based discounts require specific handling")
-
-	case FixedAmount:
-		fixedAmountDiscount := decimal.NewFromFloat(phase.DiscountValue)
-		if phase.Application == Recurring {
-			totalDiscount = fixedAmountDiscount.Mul(decimal.NewFromFloat(cycleCount))
-		} else { // Spread
-			// Spread the total fixed amount evenly across the cycleCount
-			totalDiscount = fixedAmountDiscount.Div(decimal.NewFromFloat(cycleCount)).Mul(decimal.NewFromFloat(cycleCount))
+			discount = fixedAmountDiscount.Mul(decimal.NewFromInt(phase.ApplicableNumberOfBillingCycles))
+			log = append(log, fmt.Sprintf("Discount after applying for recurring: %s", discount.String()))
+		} else { // anything else, we assume a one time fixed amount discount
+			discount = fixedAmountDiscount.Mul(decimal.NewFromInt(phase.ApplicableNumberOfBillingCycles))
+			log = append(log, fmt.Sprintf("Discount after applying for one time fixed: %s (set the type to: %s)", discount.String(), phase.Application))
+			discounts[1] = discount
+			log = append(log, fmt.Sprintf("Discount after spreading: %s", discount.String()))
 		}
 
 	default:
 		return decimal.Zero, errors.New("unsupported discount type")
 	}
 
-	// Adjust for partial cycles if needed, especially for spread discounts
-	if phase.Application == Spread && normalizedDurationRatio < 1 {
-		totalDiscount = totalDiscount.Mul(decimal.NewFromFloat(normalizedDurationRatio))
-	}
+	// Log final discount value
+	log = append(log, fmt.Sprintf("Final Discount: %s", discount.String()))
 
-	return totalDiscount, nil
-}
-*/
-/*
-func (c *CartItem) calculateDiscountForPhase(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	cycleCount := math.Ceil(normalizedDurationRatio) // Number of billing cycles covered
-
-	var totalDiscount decimal.Decimal
-	switch phase.Application {
-	case Recurring:
-		// For recurring discounts, apply the discount rate for each cycle up to n
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-		discountPerCycle := unitPrice.Mul(percentageRate)
-		totalDiscount = discountPerCycle.Mul(decimal.NewFromFloat(cycleCount))
-
-	case Spread:
-		// For spread discounts, divide the total discount amount evenly across n cycles
-		totalDiscountAmount := decimal.NewFromFloat(phase.DiscountValue) // Assuming this is the total amount to spread
-		discountPerCycle := totalDiscountAmount.Div(decimal.NewFromFloat(cycleCount))
-		totalDiscount = discountPerCycle.Mul(decimal.NewFromFloat(cycleCount))
-
-	default:
-		return decimal.Zero, errors.New("unsupported discount application type")
-	}
-
-	return totalDiscount, nil
-}
-*/
-/*
-func (c *CartItem) calculateDiscountForPhase(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice // Assuming UnitPrice is already a decimal.Decimal
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	var discount decimal.Decimal
-	switch phase.DiscountType {
-	case Percentage:
-		if phase.DiscountValue > 100 {
-			return decimal.Zero, errors.New("percentage discount value cannot exceed 100")
-		}
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-
-		if normalizedDurationRatio <= 1 {
-			// For discounts covering less than or exactly one billing cycle
-			discount = unitPrice.Mul(percentageRate).Mul(decimal.NewFromFloat(normalizedDurationRatio))
-		} else {
-			// For discounts spanning multiple billing cycles, distribute the discount evenly across the cycles
-			// Here, you may decide to apply the full discount rate to each cycle or adjust the discount rate
-			// based on the number of cycles covered. This example applies the full rate to each cycle.
-			discount = unitPrice.Mul(percentageRate) // Apply the discount rate to the unit price for each cycle
-			// Optionally, adjust the discount based on the total number of cycles if needed
-		}
-	default:
-		// Handle other types as needed
-		return decimal.Zero, errors.New("unsupported discount type")
-	}
-
-	// Ensure the discount does not exceed the unit price per billing cycle
-	if discount.GreaterThan(unitPrice) {
-		discount = unitPrice
-	}
-
-	return discount, nil
-}
-*/
-/*
-func (c *CartItem) calculatePerPhaseDiscount(phase DiscountPhase) (decimal.Decimal, error) {
-	unitPrice := c.UnitPrice
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	// Normalize the phase duration to the billing period unit
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	var discount decimal.Decimal
-	switch phase.DiscountType {
-	case Percentage:
-		if phase.DiscountValue > 100 {
-			return decimal.Zero, errors.New("percentage discount value cannot exceed 100")
-		}
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-
-		// Apply the discount rate to the portion of the billing period covered by the phase
-		discount = unitPrice.Mul(percentageRate).Mul(decimal.NewFromFloat(normalizedDurationRatio))
-
-	default:
-		// For simplicity, other types are not detailed. Implement according to your requirements.
-		return decimal.Zero, errors.New("unsupported discount type")
-	}
-
-	// Ensure the discount does not exceed the unit price for partial billing periods
-	if discount.GreaterThan(unitPrice) {
-		discount = unitPrice
-	}
-
-	return discount, nil
-}
-*/
-
-func (c *CartItem) calculatePerPhaseDiscountOld(phase DiscountPhase) (decimal.Decimal, error) {
-
-	unitPrice := c.UnitPrice // Assuming UnitPrice is already a decimal.Decimal
-
-	if phase.DiscountValue <= 0 {
-		return decimal.Zero, errors.New("discount value must be positive")
-	}
-
-	// Default to the billing period unit if the phase duration unit is not set
-	if phase.DurationUnit == TimePeriodUnknown {
-		if phase.Duration > 0 {
-			return decimal.Zero, errors.New("invalid phase DurationUnit. Please provide a valid duration unit")
-		}
-	}
-
-	// Normalize the phase duration to the billing period unit
-	normalizedDurationRatio, err := NormalizeDuration(phase.Duration, phase.DurationUnit, c.Subscription.BillingPeriodUnit)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	// Return an error if the phase period unit is greater than the billing period unit
-	// This is inferred from a normalizedDurationRatio greater than 1, meaning the phase covers more than one billing cycle
-	if normalizedDurationRatio > 1 {
-		return decimal.Zero, errors.New("phase duration unit cannot be greater than the billing period unit")
-	}
-
-	var discount decimal.Decimal
-	switch phase.DiscountType {
-	case Percentage:
-		// Validate percentage discount value
-		if phase.DiscountValue > 100 {
-			return decimal.Zero, errors.New("percentage discount value cannot exceed 100")
-		}
-		// Calculate discount for the billing cycle as a percentage of the unit price
-		percentageRate := decimal.NewFromFloat(phase.DiscountValue).Div(decimal.NewFromFloat(100))
-		printLnDecimalToString(percentageRate, "percentageRate")
-		discount = unitPrice.Mul(percentageRate)
-		printLnDecimalToString(discount, "discount")
-		discount = discount.Mul(decimal.NewFromFloat(normalizedDurationRatio))
-		printLnDecimalToString(discount, "discount")
-		/*
-			// Calculate the discount based on the normalized duration as a percentage of the billing period.
-			printLnDecimalToString(unitPrice, "unitPrice")
-
-			discountPerDurationUnit := unitPrice.Mul(percentageRate).Mul(decimal.NewFromFloat(normalizedPhaseDuration))
-			printLnDecimalToString(discountPerDurationUnit, "discountPerDurationUnit")
-			// if the phase duration time unit is less that the billing period unit, we need to adjust the discount
-			if phase.DurationUnit < c.Subscription.BillingPeriodUnit {
-				discount = discountPerDurationUnit
-			} else {
-				// this returns the whole value of the discount because the phase duration unit is greater than the billing period unit
-				// if the phase duration time unit is greater than the billing period unit, we need to adjust the discount
-				//should this return an error because why would the phase duration unit be greater than the billing period unit
-				discount = discountPerDurationUnit.Div(decimal.NewFromFloat(float64(normalizedPhaseDuration)))
-			}
-			//discount = discountPerDurationUnit.Mul(decimal.NewFromInt(phase.Duration))
-			printLnDecimalToString(discount, "discount")
-		*/
-	case TimeBased:
-		// Handling for TimeBased discounts should be defined based on specific rules
-		//return decimal.Zero, errors.New("time-based discounts not implemented in this context")
-		discount = unitPrice.Mul(decimal.NewFromFloat(normalizedDurationRatio))
-	default:
-		// For direct discounts or other types
-		discount = decimal.NewFromFloat(phase.DiscountValue)
-		if discount.GreaterThan(unitPrice) {
-			return decimal.Zero, errors.New("discount value cannot exceed unit price")
-		}
-	}
-
-	// Ensure the discount does not exceed the unit price
-	if discount.GreaterThan(unitPrice) {
-		discount = unitPrice
+	// Set logs to c.Logs
+	phase.Logs = log
+	phase.DiscountsPerBillingCycle = make(map[int64]float64)
+	// Set the discounts per billing cycle back to float64 for convenience
+	for k, v := range discounts {
+		discount, _ := v.Round(2).Float64()
+		phase.DiscountsPerBillingCycle[k] = discount
 	}
 
 	return discount, nil

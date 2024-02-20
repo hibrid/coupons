@@ -113,9 +113,166 @@ func TestCalculatePhaseDiscountPercentInvalidConfig(t *testing.T) {
 		DiscountType:  Percentage, // Indicating the DiscountRate is a percentage
 	}
 
-	_, err := cartItem.calculateDiscountForPhase(phase)
+	_, err := cartItem.calculateDiscountForPhase(&phase)
 	assert.Error(t, err, "Expected error when calculating a percentage discount")
 
+}
+
+func TestCalculatePhaseDiscountNegativeValue(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+	}
+	phase := DiscountPhase{
+		Duration:      2,          // 2 billing cycles
+		DiscountValue: -50,        // 50% discount
+		DiscountType:  Percentage, // Indicating the DiscountRate is a percentage
+	}
+
+	_, err := cartItem.calculateDiscountForPhase(&phase)
+	assert.Error(t, err, "Expected error when calculating a percentage discount")
+
+}
+
+func TestCalculatePhaseFixedTooBigValue(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	phase := DiscountPhase{
+		Duration:                        0,                 // Not relevant for fixed value
+		DurationUnit:                    TimePeriodUnknown, // Not relevant for fixed value
+		DiscountValue:                   15,                // 50% discount of the cost of two days
+		DiscountType:                    FixedAmount,       // Indicating the DiscountRate is a percentage
+		Application:                     OneTime,           // Only recurring and Onetime are valid for fixed value. Default is onetime
+		ApplicableNumberOfBillingCycles: 1,                 // 1 billing cycle
+	}
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+		Subscription: SubscriptionInfo{
+			IsRecurring:       false,
+			TrialPeriod:       0,
+			TrialPeriodUnit:   TimePeriodNoBilling,
+			BillingPeriodUnit: TimePeriodMonthly,
+			DiscountPhases:    []DiscountPhase{phase},
+		},
+	}
+
+	expectedDiscount := decimal.NewFromFloat(10) // 2 cycles * $10 * 50%
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
+	assert.True(t, len(phase.DiscountsPerBillingCycle) == 1, "The discount per billing cycle should be 1")
+	for _, amount := range phase.DiscountsPerBillingCycle {
+		assert.Equal(t, float64(10), amount, "The discount per billing cycle should be 5")
+	}
+
+	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
+	discountAsFloat, _ := discount.Round(2).Float64()
+	assert.True(t, expectedDiscount.Round(2).Equal(discount.Round(2)), fmt.Sprintf("The calculated discount should match the expected discount wanted: %f and got: %f", expectedDiscountAsFloat, discountAsFloat))
+}
+
+func TestCalculatePhaseFixedValue(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	phase := DiscountPhase{
+		Duration:                        2,               // Not relevant for fixed value
+		DurationUnit:                    TimePeriodDaily, // Not relevant for fixed value
+		DiscountValue:                   5,               // 50% discount of the cost of two days
+		DiscountType:                    FixedAmount,     // Indicating the DiscountRate is a percentage
+		Application:                     OneTime,         // Only recurring and Onetime are valid for fixed value. Default is onetime
+		ApplicableNumberOfBillingCycles: 1,               // 1 billing cycle
+	}
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+		Subscription: SubscriptionInfo{
+			IsRecurring:       false,
+			TrialPeriod:       0,
+			TrialPeriodUnit:   TimePeriodNoBilling,
+			BillingPeriodUnit: TimePeriodMonthly,
+			DiscountPhases:    []DiscountPhase{phase},
+		},
+	}
+
+	expectedDiscount := decimal.NewFromFloat(5) // 2 cycles * $10 * 50%
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
+	assert.True(t, len(phase.DiscountsPerBillingCycle) == 1, "The discount per billing cycle should be 1")
+	for _, amount := range phase.DiscountsPerBillingCycle {
+		assert.Equal(t, float64(5), amount, "The discount per billing cycle should be 5")
+	}
+
+	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
+	discountAsFloat, _ := discount.Round(2).Float64()
+	assert.True(t, expectedDiscount.Round(2).Equal(discount.Round(2)), fmt.Sprintf("The calculated discount should match the expected discount wanted: %f and got: %f", expectedDiscountAsFloat, discountAsFloat))
+}
+
+func TestCalculatePhaseFixedInvalidApplicationValue(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	phase := DiscountPhase{
+		Duration:                        2,                  // Not relevant for fixed value
+		DurationUnit:                    TimePeriodDaily,    // Not relevant for fixed value
+		DiscountValue:                   5,                  // 50% discount of the cost of two days
+		DiscountType:                    FixedAmount,        // Indicating the DiscountRate is a percentage
+		Application:                     UnknownApplication, // Only recurring and Onetime are valid for fixed value. Default is onetime
+		ApplicableNumberOfBillingCycles: 1,                  // 1 billing cycle
+	}
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+		Subscription: SubscriptionInfo{
+			IsRecurring:       false,
+			TrialPeriod:       0,
+			TrialPeriodUnit:   TimePeriodNoBilling,
+			BillingPeriodUnit: TimePeriodMonthly,
+			DiscountPhases:    []DiscountPhase{phase},
+		},
+	}
+
+	_, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.Error(t, err, "Expected error when calculating a fixed discount")
+
+}
+
+func TestCalculatePhaseFixedValueRecurring(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	phase := DiscountPhase{
+		Duration:                        2,               // Not relevant for fixed value
+		DurationUnit:                    TimePeriodDaily, // Not relevant for fixed value
+		DiscountValue:                   5,               // $5 discount
+		DiscountType:                    FixedAmount,     // Indicating the DiscountRate is a fixedamount
+		Application:                     Recurring,       // Only recurring and Onetime are valid for fixed value
+		ApplicableNumberOfBillingCycles: 2,               // 2 billing cycles
+	}
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+		Subscription: SubscriptionInfo{
+			IsRecurring:       false,
+			TrialPeriod:       0,
+			TrialPeriodUnit:   TimePeriodNoBilling,
+			BillingPeriodUnit: TimePeriodMonthly,
+			DiscountPhases:    []DiscountPhase{phase},
+		},
+	}
+
+	expectedDiscount := decimal.NewFromFloat(10) // 2 cycles * $10 * 50%
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
+
+	assert.True(t, len(phase.DiscountsPerBillingCycle) == 2, "The discount per billing cycle should be 2")
+	for _, amount := range phase.DiscountsPerBillingCycle {
+		assert.Equal(t, float64(5), amount, "The discount per billing cycle should be 5")
+	}
+
+	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
+	discountAsFloat, _ := discount.Round(2).Float64()
+	assert.True(t, expectedDiscount.Round(2).Equal(discount.Round(2)), fmt.Sprintf("The calculated discount should match the expected discount wanted: %f and got: %f", expectedDiscountAsFloat, discountAsFloat))
+	/*
+		expectedDiscount = decimal.NewFromFloat(.33) // 2 cycles * $10 * 50%
+		discount, err = cartItem.calculateTotalDiscountValue(phase)
+		assert.NoError(t, err, "Expected no error when calculating a percentage discount")
+		expectedDiscountAsFloat, _ = expectedDiscount.Round(2).Float64()
+		discountAsFloat, _ = discount.Round(2).Float64()
+		assert.True(t, expectedDiscount.Round(2).Equal(discount.Round(2)), fmt.Sprintf("The calculated discount should match the expected discount wanted: %f and got: %f", expectedDiscountAsFloat, discountAsFloat))
+	*/
 }
 
 func TestCalculatePhaseDiscountPercent(t *testing.T) {
@@ -139,8 +296,8 @@ func TestCalculatePhaseDiscountPercent(t *testing.T) {
 	}
 
 	expectedDiscount := decimal.NewFromFloat(.33) // 2 cycles * $10 * 50%
-	discount, err := cartItem.calculateDiscountForPhase(phase)
-	printLnDecimalToString(discount, "discount")
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
 	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
 	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
 	discountAsFloat, _ := discount.Round(2).Float64()
@@ -175,15 +332,15 @@ func TestCalculatePhaseDiscountPercentRecurringValid(t *testing.T) {
 	}
 
 	expectedDiscount := decimal.NewFromFloat(10) // 2 cycles * $10 * 50%
-	discount, err := cartItem.calculateDiscountForPhase(phase)
-	printLnDecimalToString(discount, "discount")
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
 	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
 	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
 	discountAsFloat, _ := discount.Round(2).Float64()
 	assert.True(t, expectedDiscount.Round(2).Equal(discount.Round(2)), fmt.Sprintf("The calculated discount should match the expected discount wanted: %f and got: %f", expectedDiscountAsFloat, discountAsFloat))
 	expectedDiscount = decimal.NewFromFloat(5) // 2 cycles * $10 * 50%
 	phase.ApplicableNumberOfBillingCycles = 1
-	discount, err = cartItem.calculateDiscountForPhase(phase)
+	discount, err = cartItem.calculateDiscountForPhase(&phase)
 	assert.NoError(t, err, "Expected no error when calculating a percentage discount")
 	expectedDiscountAsFloat, _ = expectedDiscount.Round(2).Float64()
 	discountAsFloat, _ = discount.Round(2).Float64()
@@ -211,8 +368,8 @@ func TestCalculatePhaseDiscountPercentRecurringInvalid(t *testing.T) {
 		},
 	}
 
-	discount, err := cartItem.calculateDiscountForPhase(phase)
-	printLnDecimalToString(discount, "discount")
+	_, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
 	assert.Error(t, err, "Expected error when calculating a percentage discount")
 
 }
@@ -238,17 +395,52 @@ func TestCalculatePhaseDiscountPercentSpread(t *testing.T) {
 		},
 	}
 
-	discount, err := cartItem.calculateDiscountForPhase(phase)
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
 	//printLnDecimalToString(discount, "discount")
 	assert.NoError(t, err, "Expected error when calculating a percentage discount")
 	expectedDiscount := decimal.NewFromFloat(5.33).Round(2) // 1 cycles * $10 * 50% and 2 days from the second billing cycle
 	assert.True(t, expectedDiscount.Equal(discount.Round(2)))
 
 	phase.ApplicableNumberOfBillingCycles = 1
-	discount, err = cartItem.calculateDiscountForPhase(phase)
+	discount, err = cartItem.calculateDiscountForPhase(&phase)
 	//printLnDecimalToString(discount, "discount")
 	assert.NoError(t, err, "Expected error when calculating a percentage discount")
 	expectedDiscount = decimal.NewFromFloat(5).Round(2) // 1 cycles * $10 * 50% and 2 days from the second billing cycle
+	assert.True(t, expectedDiscount.Equal(discount.Round(2)))
+}
+
+func TestCalculatePhaseDiscountPercentBigDiscount(t *testing.T) {
+	unitPrice, _ := decimal.NewFromString("10")
+	phase := DiscountPhase{
+		Duration:                        32, // 2 * DurationUnit
+		DurationUnit:                    TimePeriodDaily,
+		DiscountValue:                   100,        // 50% discount of the cost of two months
+		DiscountType:                    Percentage, // Indicating the DiscountRate is a percentage
+		Application:                     Spread,
+		ApplicableNumberOfBillingCycles: 2,
+	}
+	cartItem := CartItem{
+		UnitPrice: unitPrice,
+		Subscription: SubscriptionInfo{
+			IsRecurring:       true,
+			TrialPeriod:       0,
+			TrialPeriodUnit:   TimePeriodNoBilling,
+			BillingPeriodUnit: TimePeriodMonthly,
+			DiscountPhases:    []DiscountPhase{phase},
+		},
+	}
+
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.NoError(t, err, "Expected error when calculating a percentage discount")
+	expectedDiscount := decimal.NewFromFloat(10.67).Round(2) // discount capped at the unit price
+	assert.True(t, expectedDiscount.Equal(discount.Round(2)))
+
+	phase.ApplicableNumberOfBillingCycles = 1
+	discount, err = cartItem.calculateDiscountForPhase(&phase)
+	//printLnDecimalToString(discount, "discount")
+	assert.NoError(t, err, "Expected error when calculating a percentage discount")
+	expectedDiscount = decimal.NewFromFloat(10).Round(2) // 1 cycles * $10 * 50% and 2 days from the second billing cycle
 	assert.True(t, expectedDiscount.Equal(discount.Round(2)))
 }
 
@@ -268,7 +460,7 @@ func TestCalculatePhaseDiscountPercentTimeInvalidConfig(t *testing.T) {
 		DiscountValue: 50,         // 50% discount
 		DiscountType:  Percentage, // Indicating the DiscountRate is a percentage
 	}
-	_, err := cartItem.calculateDiscountForPhase(phase)
+	_, err := cartItem.calculateDiscountForPhase(&phase)
 	assert.Error(t, err, "Expected an error when calculating a percentage discount based on time")
 	//
 }
@@ -292,7 +484,7 @@ func TestCalculatePhaseDiscountPercentTime(t *testing.T) {
 		Application:   Recurring,       // Apply to Recurring - TODO: We are missing the number of billing cycles
 	}
 	expectedDiscount := decimal.NewFromFloat(.67) // 1 cycles * $10 / 30 days * 100%
-	discount, err := cartItem.calculateDiscountForPhase(phase)
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
 	assert.NoError(t, err, "Expected no error when calculating a percentage discount based on time")
 	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
 	discountAsFloat, _ := discount.Round(2).Float64()
@@ -318,7 +510,7 @@ func TestCalculatePhaseDiscount(t *testing.T) {
 		DiscountType:  TimeBased,       // Indicating the Discountvalue is timebased ( (DiscountValue * DurationUnit)*Duration )
 	}
 	expectedDiscount := decimal.NewFromFloat(.67) // 1 cycles * $10 * 50%
-	discount, err := cartItem.calculateDiscountForPhase(phase)
+	discount, err := cartItem.calculateDiscountForPhase(&phase)
 	assert.NoError(t, err, "Expected no error when calculating a time-based discount")
 	expectedDiscountAsFloat, _ := expectedDiscount.Round(2).Float64()
 	discountAsFloat, _ := discount.Round(2).Float64()
@@ -725,7 +917,7 @@ func TestCartItem_GetSetTotalDiscountAmountValid(t *testing.T) {
 	receivedDiscountAmount, err := cartItem.GetTotalDiscountAmount()
 	assert.NoError(t, err, "Getting the discount amount should not result in an error")
 
-	printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
+	//printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
 	discountAmountfloat, _ := discountAmount.Round(2).Float64()
 	receivedDiscountAmountfloat, _ := receivedDiscountAmount.Round(2).Float64()
 	assert.True(t, discountAmount.Round(2).Equal(receivedDiscountAmount.Round(2)), "The received discount amount should match the set value", discountAmountfloat, receivedDiscountAmountfloat)
@@ -769,7 +961,7 @@ func TestCartItem_GetSetTotalDiscountAmountValidPhaseDurationMatchesBilling(t *t
 	receivedDiscountAmount, err := cartItem.GetTotalDiscountAmount()
 	assert.NoError(t, err, "Getting the discount amount should not result in an error")
 
-	printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
+	//printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
 	discountAmountfloat, _ := discountAmount.Round(2).Float64()
 	receivedDiscountAmountfloat, _ := receivedDiscountAmount.Round(2).Float64()
 	assert.True(t, discountAmount.Round(2).Equal(receivedDiscountAmount.Round(2)), "The received discount amount should match the set value", discountAmountfloat, receivedDiscountAmountfloat)
@@ -810,7 +1002,7 @@ func TestCartItem_GetSetTotalDiscountAmountValid2(t *testing.T) {
 	receivedDiscountAmount, err := cartItem.GetTotalDiscountAmount()
 	assert.NoError(t, err, "Getting the discount amount should not result in an error")
 
-	printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
+	//printLnDecimalToString(receivedDiscountAmount, "receivedDiscountAmount")
 	discountAmountfloat, _ := discountAmount.Round(2).Float64()
 	receivedDiscountAmountfloat, _ := receivedDiscountAmount.Round(2).Float64()
 	assert.True(t, discountAmount.Round(2).Equal(receivedDiscountAmount.Round(2)), "The received discount amount should match the set value", discountAmountfloat, receivedDiscountAmountfloat)
