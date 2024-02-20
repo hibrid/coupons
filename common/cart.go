@@ -65,7 +65,7 @@ func (c *Cart) GetTotalAmount() float64 {
 	totalDecimal := decimal.Zero // Use decimal for precise summing
 	for _, item := range c.CartItems {
 		// Ensure TotalGrossAmount is a decimal.Decimal
-		totalDecimal = totalDecimal.Add(item.TotalGrossAmount)
+		totalDecimal = totalDecimal.Add(item.GetGrossTotalAmount())
 	}
 	// Round to 2 decimal places for currency precision and convert to float64
 	total, _ := totalDecimal.Round(2).Float64()
@@ -76,7 +76,7 @@ func (c *Cart) GetTotalDiscountAmount() float64 {
 	totalDecimal := decimal.Zero // Use decimal for precise summing
 	for _, item := range c.CartItems {
 		// Ensure DiscountAmountPerDiscountedUnit is a decimal.Decimal
-		totalDecimal = totalDecimal.Add(item.DiscountAmountPerDiscountedUnit)
+		totalDecimal = totalDecimal.Add(item.DiscountValuePerDiscountedUnit)
 	}
 	// Round to 2 decimal places for currency precision and convert to float64
 	total, _ := totalDecimal.Round(2).Float64()
@@ -86,7 +86,7 @@ func (c *Cart) GetTotalDiscountAmount() float64 {
 func (c *Cart) GetTotalDiscountedUnits() int64 {
 	var total int64
 	for _, item := range c.CartItems {
-		total += item.DiscountedUnitsQuantity
+		total += item.NumberOfUnitsDiscounted
 	}
 	return total
 }

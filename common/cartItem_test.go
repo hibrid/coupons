@@ -30,8 +30,8 @@ func TestCartItemValidate(t *testing.T) {
 
 	// Test case 3: Negative discount amount per unit
 	cartItem = &CartItem{
-		Quantity:                        1,
-		DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(-5.0),
+		Quantity:                       1,
+		DiscountValuePerDiscountedUnit: decimal.NewFromFloat(-5.0),
 	}
 	err = cartItem.Validate()
 	if err == nil || err.Error() != "discount amount per unit cannot be negative" {
@@ -41,7 +41,7 @@ func TestCartItemValidate(t *testing.T) {
 	// Test case 4: Discounted units quantity exceeds total quantity
 	cartItem = &CartItem{
 		Quantity:                5,
-		DiscountedUnitsQuantity: 6,
+		NumberOfUnitsDiscounted: 6,
 	}
 	err = cartItem.Validate()
 	if err == nil || err.Error() != "discounted units quantity cannot exceed total quantity" {
@@ -211,8 +211,8 @@ func TestSetDiscountAmountPerUnitFromString(t *testing.T) {
 		t.Errorf("Test case 1 failed: Unexpected error: %v", err)
 	}
 	expectedDiscountAmount, _ := decimal.NewFromString(discountAmountStr)
-	if !cartItem.DiscountAmountPerDiscountedUnit.Equal(expectedDiscountAmount) {
-		t.Errorf("Test case 1 failed: Expected discount amount %s, got %s", expectedDiscountAmount.String(), cartItem.DiscountAmountPerDiscountedUnit.String())
+	if !cartItem.DiscountValuePerDiscountedUnit.Equal(expectedDiscountAmount) {
+		t.Errorf("Test case 1 failed: Expected discount amount %s, got %s", expectedDiscountAmount.String(), cartItem.DiscountValuePerDiscountedUnit.String())
 	}
 
 	// Test case 2: Invalid discount amount string
@@ -421,9 +421,7 @@ func TestCartItem_SetGetQuantity(t *testing.T) {
 	assert.Equal(t, quantity, cartItem.GetQuantity(), "GetQuantity should return the quantity set by SetQuantity")
 	cartItem.SetQuantity(-1) // Test error case
 	assert.NotEqual(t, -1, cartItem.GetQuantity(), "GetQuantity should not return -1 after SetQuantity with -1")
-	cartItem.Subscription = SubscriptionInfo{
-		IsRecurring: true,
-	}
+	cartItem.IsSubscription = true
 	cartItem.SetQuantity(2) // Test error case
 }
 
@@ -1179,15 +1177,22 @@ func TestCalculateNonSubscriptionDiscount(t *testing.T) {
 	unitPrice, _ := decimal.NewFromString("10")
 	discountAmountPerUnit, _ := decimal.NewFromString("2")
 	cartItem := CartItem{
-		UnitPrice:                       unitPrice,
-		Quantity:                        5,
-		DiscountAmountPerDiscountedUnit: discountAmountPerUnit,
-		DiscountedUnitsQuantity:         3,
+		UnitPrice:                      unitPrice,
+		Quantity:                       5,
+		DiscountValuePerDiscountedUnit: discountAmountPerUnit,
+		NumberOfUnitsDiscounted:        3,
 	}
 	expectedDiscount := discountAmountPerUnit.Mul(decimal.NewFromInt(3)) // 3 units * $2 discount
 	discount, err := cartItem.calculateNonSubscriptionDiscount()
 	assert.NoError(t, err, "Expected no error when calculating a non-subscription discount")
 	assert.Equal(t, expectedDiscount, discount)
+
+	// Additional test case when DiscountType is Percentage
+	cartItem.DiscountType = Percentage
+	expectedPercentageDiscount := unitPrice.Mul(decimal.NewFromFloat(0.02)).Mul(decimal.NewFromInt(3)) // 2% discount * 3 units
+	discount, err = cartItem.calculateNonSubscriptionDiscount()
+	assert.NoError(t, err, "Expected no error when calculating a non-subscription discount")
+	assert.Equal(t, expectedPercentageDiscount.Round(2), discount.Round(2))
 }
 
 func TestCartItem_Validate(t *testing.T) {
@@ -1200,10 +1205,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Valid CartItem",
 			item: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(1.0),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					BillingPeriodUnit: TimePeriodMonthly,
 				},
@@ -1213,10 +1218,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Negative Quantity",
 			item: &CartItem{
-				Quantity:                        -1,
-				UnitPrice:                       decimal.NewFromFloat(10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(1.0),
-				DiscountedUnitsQuantity:         0,
+				Quantity:                       -1,
+				UnitPrice:                      decimal.NewFromFloat(10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
+				NumberOfUnitsDiscounted:        0,
 			},
 			wantErr: true,
 			errMsg:  "quantity cannot be negative",
@@ -1224,10 +1229,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Negative Unit Price",
 			item: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(-10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(1.0),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(-10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
+				NumberOfUnitsDiscounted:        1,
 			},
 			wantErr: true,
 			errMsg:  "unit price cannot be negative",
@@ -1235,10 +1240,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Negative Discount Amount Per Unit",
 			item: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(-1.0),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(-1.0),
+				NumberOfUnitsDiscounted:        1,
 			},
 			wantErr: true,
 			errMsg:  "discount amount per unit cannot be negative",
@@ -1246,10 +1251,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Negative Discounted Units Quantity",
 			item: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(1.0),
-				DiscountedUnitsQuantity:         -1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
+				NumberOfUnitsDiscounted:        -1,
 			},
 			wantErr: true,
 			errMsg:  "discounted units quantity cannot be negative",
@@ -1257,10 +1262,10 @@ func TestCartItem_Validate(t *testing.T) {
 		{
 			name: "Discounted Units Quantity Exceeds Total Quantity",
 			item: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(10.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(1.0),
-				DiscountedUnitsQuantity:         2,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(10.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
+				NumberOfUnitsDiscounted:        2,
 			},
 			wantErr: true,
 			errMsg:  "discounted units quantity cannot exceed total quantity",
@@ -1283,26 +1288,26 @@ func TestCartItem_Validate(t *testing.T) {
 func TestCartItem_Clone(t *testing.T) {
 	unitPrice, _ := decimal.NewFromString("10.0")
 	discountAmountPerUnit, _ := decimal.NewFromString("1.0")
-	totalDiscountAmount, _ := decimal.NewFromString("1.0")
-	totalGrossAmount, _ := decimal.NewFromString("20.0")
+	//totalDiscountAmount, _ := decimal.NewFromString("1.0")
+	//totalGrossAmount, _ := decimal.NewFromString("20.0")
 	original := &CartItem{
-		SkuID:                           "test-sku",
-		Quantity:                        2,
-		UnitPrice:                       unitPrice,
-		DiscountAmountPerDiscountedUnit: discountAmountPerUnit,
-		DiscountedUnitsQuantity:         1,
-		TotalDiscountAmount:             totalDiscountAmount,
-		TotalGrossAmount:                totalGrossAmount,
+		SkuID:                          "test-sku",
+		Quantity:                       2,
+		UnitPrice:                      unitPrice,
+		DiscountValuePerDiscountedUnit: discountAmountPerUnit,
+		NumberOfUnitsDiscounted:        1,
+		//TotalDiscountAmount:            totalDiscountAmount,
+		//TotalGrossAmount:               totalGrossAmount,
 	}
 	cloned := original.Clone()
 
 	assert.Equal(t, original.SkuID, cloned.SkuID)
 	assert.Equal(t, original.Quantity, cloned.Quantity)
 	assert.True(t, original.UnitPrice.Equal(cloned.UnitPrice))
-	assert.True(t, original.DiscountAmountPerDiscountedUnit.Equal(cloned.DiscountAmountPerDiscountedUnit))
-	assert.Equal(t, original.DiscountedUnitsQuantity, cloned.DiscountedUnitsQuantity)
-	assert.True(t, original.TotalDiscountAmount.Equal(cloned.TotalDiscountAmount))
-	assert.True(t, original.TotalGrossAmount.Equal(cloned.TotalGrossAmount))
+	assert.True(t, original.DiscountValuePerDiscountedUnit.Equal(cloned.DiscountValuePerDiscountedUnit))
+	assert.Equal(t, original.NumberOfUnitsDiscounted, cloned.NumberOfUnitsDiscounted)
+	//assert.True(t, original.TotalDiscountAmount.Equal(cloned.TotalDiscountAmount))
+	//assert.True(t, original.TotalGrossAmount.Equal(cloned.TotalGrossAmount))
 	assert.False(t, original == cloned, "Cloned cart item should not be the same instance as the original")
 }
 
@@ -1341,10 +1346,10 @@ func TestCartItem_GetNetTotalAmount(t *testing.T) {
 	unitPrice, _ := decimal.NewFromString("10.00")
 	discountAmountPerUnit, _ := decimal.NewFromString("1.00")
 	cartItem := &CartItem{
-		UnitPrice:                       unitPrice,
-		Quantity:                        2,
-		DiscountAmountPerDiscountedUnit: discountAmountPerUnit,
-		DiscountedUnitsQuantity:         1,
+		UnitPrice:                      unitPrice,
+		Quantity:                       2,
+		DiscountValuePerDiscountedUnit: discountAmountPerUnit,
+		NumberOfUnitsDiscounted:        1,
 	}
 	grossTotal := unitPrice.Mul(decimal.NewFromInt(2))                // 2 * unit price
 	discountTotal := discountAmountPerUnit.Mul(decimal.NewFromInt(1)) // 1 * discount per unit
@@ -1364,10 +1369,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "No discount when discount per unit is zero",
 			cartItem: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(100.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(0),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(100.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(0),
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1380,10 +1385,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "No discount when quantity is zero",
 			cartItem: &CartItem{
-				Quantity:                        0,
-				UnitPrice:                       decimal.NewFromFloat(100.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(5),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       0,
+				UnitPrice:                      decimal.NewFromFloat(100.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(5),
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1396,10 +1401,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "No discount when unit price is zero",
 			cartItem: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.Zero,
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(5),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.Zero,
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(5),
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1412,10 +1417,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "No discount when discounted units quantity is zero",
 			cartItem: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(100.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(5),
-				DiscountedUnitsQuantity:         0,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(100.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(5),
+				NumberOfUnitsDiscounted:        0,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1428,10 +1433,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "Correct discount calculation",
 			cartItem: &CartItem{
-				Quantity:                        2,
-				UnitPrice:                       decimal.NewFromFloat(100.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(5),
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       2,
+				UnitPrice:                      decimal.NewFromFloat(100.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(5),
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1444,10 +1449,10 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 		{
 			name: "Discount does not exceed total gross amount",
 			cartItem: &CartItem{
-				Quantity:                        1,
-				UnitPrice:                       decimal.NewFromFloat(50.0),
-				DiscountAmountPerDiscountedUnit: decimal.NewFromFloat(100), // Intentionally high to trigger the cap
-				DiscountedUnitsQuantity:         1,
+				Quantity:                       1,
+				UnitPrice:                      decimal.NewFromFloat(50.0),
+				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(100), // Intentionally high to trigger the cap
+				NumberOfUnitsDiscounted:        1,
 				Subscription: SubscriptionInfo{
 					IsRecurring:       false,
 					TrialPeriod:       0,
@@ -1474,6 +1479,7 @@ func TestCalculateTotalDiscountAmount(t *testing.T) {
 
 func TestCartItem_GetSetTotalDiscountAmountNoPhases(t *testing.T) {
 	cartItem := &CartItem{
+		IsSubscription: true,
 		Subscription: SubscriptionInfo{
 			IsRecurring:       true,
 			TrialPeriod:       0,
@@ -1502,6 +1508,7 @@ func TestCartItem_GetSetTotalDiscountAmountNoPhases(t *testing.T) {
 
 func TestCartItem_GetSetTotalDiscountAmountValid(t *testing.T) {
 	cartItem := &CartItem{
+		IsSubscription: true,
 		Subscription: SubscriptionInfo{
 			IsRecurring: true,
 			TrialPeriod: 0,
@@ -1546,6 +1553,7 @@ func TestCartItem_GetSetTotalDiscountAmountValid(t *testing.T) {
 func TestCartItem_GetSetTotalDiscountAmountValidPhaseDurationMatchesBilling(t *testing.T) {
 	unitPrice, _ := decimal.NewFromString("10.00")
 	cartItem := &CartItem{
+		IsSubscription: true,
 		Subscription: SubscriptionInfo{
 			IsRecurring:       true,
 			TrialPeriod:       0,
@@ -1588,6 +1596,7 @@ func TestCartItem_GetSetTotalDiscountAmountValidPhaseDurationMatchesBilling(t *t
 
 func TestCartItem_GetSetTotalDiscountAmountValid2(t *testing.T) {
 	cartItem := &CartItem{
+		IsSubscription: true,
 		Subscription: SubscriptionInfo{
 			IsRecurring:       true,
 			TrialPeriod:       0,
