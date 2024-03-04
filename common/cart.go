@@ -36,22 +36,44 @@ func (c *Cart) GetItemTotal(item CartItem) (float64, error) {
 	return netTotalAmountFloat64, nil
 }
 
-func (c *Cart) AddCartItem(cartItem CartItem) (*CartItem, error) {
+func (c *Cart) AddItem(cartItem CartItem) error {
 	if err := cartItem.Validate(); err != nil {
-		return nil, err
+		return err
 	}
-	// check if the cart item already exists
-	if item, exists := c.DoesItemExist(cartItem.SkuID); exists {
-		// if it exists, update the quantity and total amount
-		item.Quantity += cartItem.Quantity
-		item.UpdateTotals()
-		return item, nil
+
+	for i, existingItem := range c.CartItems {
+		if existingItem.SkuID == cartItem.SkuID {
+			c.CartItems[i].Quantity += cartItem.Quantity
+			c.CartItems[i].UpdateTotals()
+			return nil
+		}
 	}
+
 	c.CartItems = append(c.CartItems, cartItem)
-	return &cartItem, nil
+	return nil
 }
 
-func (c *Cart) RemoveCartItem(skuID string) error {
+/*
+func (c *Cart) AddItem(item CartItem) error {
+	// Validate item before adding
+	if err := item.Validate(); err != nil {
+		return err
+	}
+
+	// Check for existing item and update quantity instead of adding a new one
+	for i, existingItem := range c.CartItems {
+		if existingItem.SkuID == item.SkuID {
+			c.CartItems[i].Quantity += item.Quantity
+			return nil
+		}
+	}
+
+	c.CartItems = append(c.CartItems, item)
+	return nil
+}
+*/
+
+func (c *Cart) RemoveItem(skuID string) error {
 	for i, item := range c.CartItems {
 		if item.SkuID == skuID {
 			c.CartItems = append(c.CartItems[:i], c.CartItems[i+1:]...)
@@ -61,7 +83,19 @@ func (c *Cart) RemoveCartItem(skuID string) error {
 	return errors.New("item not found")
 }
 
-func (c *Cart) GetTotalAmount() float64 {
+func (c *Cart) GetTotalNetAmount() (decimal.Decimal, error) {
+	total := decimal.Zero
+	for _, item := range c.CartItems {
+		itemTotal, err := item.GetNetTotalAmount()
+		if err != nil {
+			return decimal.Zero, err
+		}
+		total = total.Add(itemTotal)
+	}
+	return total, nil
+}
+
+func (c *Cart) GetTotalGrossAmount() float64 {
 	totalDecimal := decimal.Zero // Use decimal for precise summing
 	for _, item := range c.CartItems {
 		// Ensure TotalGrossAmount is a decimal.Decimal
