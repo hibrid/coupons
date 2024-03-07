@@ -389,7 +389,11 @@ func TestCalculateSubscriptionDiscount(t *testing.T) {
 
 func TestSetUnitPriceFromString(t *testing.T) {
 	// Create a CartItem instance
-	cartItem := &CartItem{}
+	cartItem := &CartItem{
+		Subscription: SubscriptionInfo{
+			BillingPeriodUnit: TimePeriodMonthly,
+		},
+	}
 
 	// Test case 1: Valid unit price string
 	unitPriceStr := "10.99"
@@ -1340,6 +1344,8 @@ func TestCartItem_GetGrossTotalAmount(t *testing.T) {
 	}
 	expectedTotal := unitPrice.Mul(decimal.NewFromInt(2)) // 2 * unit price
 	assert.True(t, expectedTotal.Equal(cartItem.GetGrossTotalAmount()), "GetGrossTotalAmount should return the correct total amount")
+	cartItem.UnitPrice = decimal.NewFromInt(-1)
+	assert.True(t, decimal.Zero.Equal(cartItem.GetGrossTotalAmount()), "GetGrossTotalAmount should return 0 when the unit price is negative")
 }
 
 func TestCartItem_GetNetTotalAmount(t *testing.T) {
@@ -1350,6 +1356,9 @@ func TestCartItem_GetNetTotalAmount(t *testing.T) {
 		Quantity:                       2,
 		DiscountValuePerDiscountedUnit: discountAmountPerUnit,
 		NumberOfUnitsDiscounted:        1,
+		Subscription: SubscriptionInfo{
+			BillingPeriodUnit: TimePeriodNoBilling,
+		},
 	}
 	grossTotal := unitPrice.Mul(decimal.NewFromInt(2))                // 2 * unit price
 	discountTotal := discountAmountPerUnit.Mul(decimal.NewFromInt(1)) // 1 * discount per unit

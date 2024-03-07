@@ -19,8 +19,18 @@ func decimalToString(d decimal.Decimal) string {
 	return d.Round(2).String()
 }
 
-func printLnDecimalToString(d decimal.Decimal, varName string) {
-	_, file, line, ok := runtime.Caller(1)
+type CallerInfoProvider interface {
+	Caller(skip int) (pc uintptr, file string, line int, ok bool)
+}
+
+type RuntimeCallerInfoProvider struct{}
+
+func (RuntimeCallerInfoProvider) Caller(skip int) (uintptr, string, int, bool) {
+	return runtime.Caller(skip)
+}
+
+func printLnDecimalToString(d decimal.Decimal, varName string, provider CallerInfoProvider) {
+	_, file, line, ok := provider.Caller(1)
 	if !ok {
 		fmt.Println("Error retrieving caller info")
 		return

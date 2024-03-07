@@ -280,7 +280,11 @@ func (c *CartItem) SetUnitPriceFromString(unitPriceStr string) error {
 }
 
 func (c *CartItem) GetGrossTotalAmount() decimal.Decimal {
-	return c.UnitPrice.Mul(decimal.NewFromInt(int64(c.Quantity)))
+	grossAmount := c.UnitPrice.Mul(decimal.NewFromInt(int64(c.Quantity)))
+	if grossAmount.IsNegative() {
+		return decimal.Zero
+	}
+	return grossAmount
 }
 
 func (c *CartItem) GetNetTotalAmount() (decimal.Decimal, error) {
@@ -300,8 +304,9 @@ func (c *CartItem) GetTotalDiscountAmount() (decimal.Decimal, error) {
 }
 
 func (c *CartItem) calculateTotalDiscountAmount() (decimal.Decimal, error) {
-	if c.Quantity == 0 || c.UnitPrice.IsZero() {
-		return decimal.Zero, nil
+	err := c.Validate()
+	if err != nil {
+		return decimal.Zero, err
 	}
 
 	if c.IsSubscription {
@@ -361,13 +366,15 @@ func applyRecurringDiscount(validNumberOfBilingCycles float64, normalizedDuratio
 }
 
 func applyNonRecurringDiscount(validNumberOfBilingCycles float64, normalizedDurationRatio float64, discount decimal.Decimal, percentageRate decimal.Decimal, discounts map[int64]decimal.Decimal, unitPrice decimal.Decimal, log []string) (decimal.Decimal, []string) {
-	fmt.Println("ValidNumberOfBilingCycles: ", validNumberOfBilingCycles)
-	fmt.Println("normalizedDurationRatio: ", normalizedDurationRatio)
-	fmt.Println("discount: ", discount)
-	fmt.Println("percentageRate: ", percentageRate)
-	fmt.Println("discounts: ", discounts)
-	fmt.Println("unitPrice: ", unitPrice)
-	fmt.Println("log: ", log)
+	/*
+		fmt.Println("ValidNumberOfBilingCycles: ", validNumberOfBilingCycles)
+		fmt.Println("normalizedDurationRatio: ", normalizedDurationRatio)
+		fmt.Println("discount: ", discount)
+		fmt.Println("percentageRate: ", percentageRate)
+		fmt.Println("discounts: ", discounts)
+		fmt.Println("unitPrice: ", unitPrice)
+		fmt.Println("log: ", log)
+	*/
 
 	discount = discount.Mul(decimal.NewFromFloat(normalizedDurationRatio))
 	discounts[1] = discount
@@ -537,14 +544,15 @@ func (c *CartItem) calculateDiscountForPhase(phase *DiscountPhase) (decimal.Deci
 		} else {
 			// Spread the discount evenly across the duration of the phase.
 			// print all the variables going into applyNonRecurringDiscount
-			fmt.Println("ValidNumberOfBilingCycles: ", ValidNumberOfBilingCycles)
-			fmt.Println("normalizedDurationRatio: ", normalizedDurationRatio)
-			fmt.Println("discount: ", discount)
-			fmt.Println("percentageRate: ", percentageRate)
-			fmt.Println("discounts: ", discounts)
-			fmt.Println("unitPrice: ", unitPrice)
-			fmt.Println("log: ", log)
-
+			/*
+				fmt.Println("ValidNumberOfBilingCycles: ", ValidNumberOfBilingCycles)
+				fmt.Println("normalizedDurationRatio: ", normalizedDurationRatio)
+				fmt.Println("discount: ", discount)
+				fmt.Println("percentageRate: ", percentageRate)
+				fmt.Println("discounts: ", discounts)
+				fmt.Println("unitPrice: ", unitPrice)
+				fmt.Println("log: ", log)
+			*/
 			discount, log = applyNonRecurringDiscount(ValidNumberOfBilingCycles, normalizedDurationRatio, discount, percentageRate, discounts, unitPrice, log)
 		}
 
@@ -574,7 +582,7 @@ func (c *CartItem) calculateDiscountForPhase(phase *DiscountPhase) (decimal.Deci
 }
 
 func (c *CartItem) calculateNonSubscriptionDiscount() (decimal.Decimal, error) {
-	if c.NumberOfUnitsDiscounted == 0 || c.DiscountValuePerDiscountedUnit.IsZero() {
+	if c.NumberOfUnitsDiscounted == 0 || c.DiscountValuePerDiscountedUnit.IsZero() || c.NumberOfUnitsDiscounted < 0 {
 		return decimal.Zero, nil
 	}
 	discountedAmount := c.DiscountValuePerDiscountedUnit.Mul(decimal.NewFromInt(int64(c.NumberOfUnitsDiscounted)))

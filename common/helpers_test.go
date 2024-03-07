@@ -3,9 +3,9 @@ package common
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
-	"runtime"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -55,65 +55,74 @@ func TestPrintLnDecimalToString(t *testing.T) {
 	// Mocking stdout is also an option but would be more complex.
 	d := decimal.NewFromFloat(5.6789)
 	varName := "testVar"
-	printLnDecimalToString(d, varName)
+	printLnDecimalToString(d, varName, RuntimeCallerInfoProvider{})
 	// If no panic occurs during the function execution, it's considered successful.
 }
 
-func TestPrintLnDecimalToString2(t *testing.T) {
-	// Test case 1: Caller information can be retrieved
-	t.Run("Success", func(t *testing.T) {
+func TestPrintLnDecimalToString3(t *testing.T) {
+	// Backup stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
 
-		old := os.Stdout // keep backup of the real stdout
-		outC := make(chan string)
-		r, w, _ := os.Pipe()
-		os.Stdout = w
+	varName := "testDecimal"
+	testDecimal := decimal.NewFromFloat(123.456)
 
-		//os.Stdout = &buf
-		d := decimal.NewFromFloat(5.6789)
-		varName := "testVar"
-		printLnDecimalToString(d, varName)
+	// Expected patterns in the output
+	expectedDecimalPattern := decimalToString(testDecimal) // Use the same formatting function to match the output
 
-		// copy the output in a separate goroutine so printing can't block indefinitely
-		go func() {
-			var buf bytes.Buffer
-			io.Copy(&buf, r)
-			outC <- buf.String()
-		}()
-		w.Close()
-		os.Stdout = old // restoring the real stdout
-		out := <-outC
-		// Check if the output is as expected
-		expectedOutput := fmt.Sprintf("Variable '%s' at %s:%d: %s\n", varName, "/root/go/src/github.com/hibrid/coupons/common/helpers_test.go", 74, decimalToString(d))
-		if out != expectedOutput {
-			t.Errorf("Expected output: %s; got: %s", expectedOutput, out)
-		}
-	})
+	// Execute the function
+	printLnDecimalToString(testDecimal, varName, RuntimeCallerInfoProvider{})
 
-	// Test case 2: Caller information cannot be retrieved
-	t.Run("Error", func(t *testing.T) {
-		// Save current stdout
-		old := os.Stdout
-		r, w, _ := os.Pipe()
-		defer func() {
-			os.Stdout = old
-		}()
-		os.Stdout = w
+	// Close pipe and restore stdout
+	w.Close()
+	os.Stdout = oldStdout
 
-		// Simulate failure to retrieve caller info
-		_, _, _, _ = runtime.Caller(0) // Retrieving caller info will fail in this case
-		d := decimal.NewFromFloat(5.6789)
-		varName := "testVar"
-		printLnDecimalToString(d, varName)
+	// Read the output
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
 
-		// Capture stdout and restore old
-		w.Close()
-		var buf bytes.Buffer
-		io.Copy(&buf, r)
+	// Compile regex to match the expected output format loosely
+	expectedOutputRegex := regexp.MustCompile(fmt.Sprintf("Variable '%s' at .*:\\d+: %s\n", varName, expectedDecimalPattern))
 
-		// Check if the error message is printed
-		expectedErrorMsg := "Error retrieving caller info\n"
-		if buf.String() != expectedErrorMsg {
-			t.Errorf("Expected error message: %s; got: %s", expectedErrorMsg, buf.String())
-		}
-	})
+	// Test assertions
+	if !expectedOutputRegex.MatchString(output) {
+		t.Errorf("Output does not match the expected format.\nOutput: %s\nExpected to match pattern: %s", output, expectedOutputRegex.String())
+	}
+}
+
+type MockFailCallerInfoProvider struct{}
+
+func (MockFailCallerInfoProvider) Caller(skip int) (uintptr, string, int, bool) {
+	return 0, "", 0, false // Simulate failure
+}
+
+func TestPrintLnDecimalToStringFailCase(t *testing.T) {
+	// Backup stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Use the mock provider that simulates failure
+	provider := MockFailCallerInfoProvider{}
+
+	// Execute the function with the mock provider
+	printLnDecimalToString(decimal.NewFromFloat(123.456), "testDecimal", provider)
+
+	// Close pipe and restore stdout
+	w.Close()
+	os.Stdout = oldStdout
+
+	// Read the output
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	expectedOutput := "Error retrieving caller info"
+
+	// Test assertion for the failure case
+	if !strings.Contains(output, expectedOutput) {
+		t.Errorf("Output does not contain the expected error message.\nOutput: %s\nExpected to contain: %s", output, expectedOutput)
+	}
 }

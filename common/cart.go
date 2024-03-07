@@ -23,7 +23,7 @@ func (c *Cart) SetCartItems(cartItems []CartItem) error {
 	return nil
 }
 
-func (c *Cart) GetItemTotal(item CartItem) (float64, error) {
+func (c *Cart) GetItemNetTotal(item CartItem) (float64, error) {
 	netTotalAmountDecimal, err := item.GetNetTotalAmount() // Assuming GetNetTotalAmount returns decimal.Decimal
 	if err != nil {
 		// Handle the error, e.g., by logging or returning a default value
@@ -34,6 +34,11 @@ func (c *Cart) GetItemTotal(item CartItem) (float64, error) {
 	// Convert decimal.Decimal to float64
 	netTotalAmountFloat64, _ := netTotalAmountDecimal.Float64()
 	return netTotalAmountFloat64, nil
+}
+
+func (c *Cart) GetItemGrossTotal(item CartItem) float64 {
+	n, _ := item.GetGrossTotalAmount().Round(2).Float64()
+	return n
 }
 
 func (c *Cart) AddItem(cartItem CartItem) error {
@@ -83,16 +88,17 @@ func (c *Cart) RemoveItem(skuID string) error {
 	return errors.New("item not found")
 }
 
-func (c *Cart) GetTotalNetAmount() (decimal.Decimal, error) {
+func (c *Cart) GetTotalNetAmount() (float64, error) {
 	total := decimal.Zero
 	for _, item := range c.CartItems {
 		itemTotal, err := item.GetNetTotalAmount()
 		if err != nil {
-			return decimal.Zero, err
+			return 0, err
 		}
 		total = total.Add(itemTotal)
 	}
-	return total, nil
+	totalResponse, _ := total.Round(2).Float64()
+	return totalResponse, nil
 }
 
 func (c *Cart) GetTotalGrossAmount() float64 {
