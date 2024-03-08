@@ -1,8 +1,9 @@
-package common
+package cart
 
 import (
 	"testing"
 
+	"github.com/hibrid/coupons/common"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
@@ -46,7 +47,7 @@ func newTestCart() *Cart {
 				DiscountDescription:            "Test Discount",
 				DiscountValuePerDiscountedUnit: decimal.NewFromFloat(1.0),
 				NumberOfUnitsDiscounted:        1,
-				Subscription:                   SubscriptionInfo{BillingPeriodUnit: TimePeriodNoBilling},
+				Subscription:                   SubscriptionInfo{BillingPeriodUnit: common.TimePeriodNoBilling},
 			},
 		},
 	}
@@ -75,7 +76,7 @@ func TestCart_AddItem(t *testing.T) {
 	cart := newTestCart()
 	newItem := CartItem{
 		SkuID: "test2", Quantity: 1, UnitPrice: decimal.NewFromFloat(20.0),
-		Subscription: SubscriptionInfo{BillingPeriodUnit: TimePeriodNoBilling},
+		Subscription: SubscriptionInfo{BillingPeriodUnit: common.TimePeriodNoBilling},
 	}
 	err := cart.AddItem(newItem)
 	assert.Nil(t, err, "Expected no error when adding a new item")
@@ -83,7 +84,7 @@ func TestCart_AddItem(t *testing.T) {
 
 	// Test adding an item with an existing SKU
 	existingItem := CartItem{SkuID: "test1", Quantity: 1, UnitPrice: decimal.NewFromFloat(10.0),
-		Subscription: SubscriptionInfo{BillingPeriodUnit: TimePeriodNoBilling},
+		Subscription: SubscriptionInfo{BillingPeriodUnit: common.TimePeriodNoBilling},
 	}
 	err = cart.AddItem(existingItem)
 	assert.Nil(t, err, "Expected no error when adding an existing item")

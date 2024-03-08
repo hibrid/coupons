@@ -1,6 +1,88 @@
 package common
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/shopspring/decimal"
+)
+
+func TestNormalizeDuration(t *testing.T) {
+	tests := []struct {
+		name        string
+		duration    int64
+		fromUnit    TimeUnit
+		toUnit      TimeUnit
+		expected    float64
+		expectError bool
+	}{
+		{
+			name:        "Hours to Days",
+			duration:    36, // 36 hours
+			fromUnit:    TimePeriodHourly,
+			toUnit:      TimePeriodDaily,
+			expected:    1.5, // Ratio is 1.5 days
+			expectError: false,
+		},
+		{
+			name:        "Weeks to Days",
+			duration:    2, // 2 weeks
+			fromUnit:    TimePeriodWeekly,
+			toUnit:      TimePeriodDaily,
+			expected:    14, // 2 weeks * 7 days/week
+			expectError: false,
+		},
+		{
+			name:        "Days to Weeks",
+			duration:    10, // 10 days
+			fromUnit:    TimePeriodDaily,
+			toUnit:      TimePeriodWeekly,
+			expected:    1.428571, // Rounded up from 1.42857 weeks
+			expectError: false,
+		},
+		{
+			name:        "Monthly to BiAnnual",
+			duration:    3, // 3 months
+			fromUnit:    TimePeriodMonthly,
+			toUnit:      TimePeriodBiAnnual,
+			expected:    0.493151, // Rounded up from 0.5 of a half-year
+			expectError: false,
+		},
+		{
+			name:        "Invalid FromUnit",
+			duration:    1,
+			fromUnit:    TimePeriodUnknown,
+			toUnit:      TimePeriodWeekly,
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "Invalid ToUnit",
+			duration:    1,
+			fromUnit:    TimePeriodDaily,
+			toUnit:      TimePeriodUnknown,
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := NormalizeDuration(tt.duration, tt.fromUnit, tt.toUnit)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("%s expected an error but got none", tt.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%s unexpected error: %v", tt.name, err)
+				}
+				if !decimal.NewFromFloat(result).Round(2).Equal(decimal.NewFromFloat(tt.expected).Round(2)) {
+					t.Errorf("%s expected %f, got %f", tt.name, tt.expected, result)
+				}
+			}
+		})
+	}
+}
 
 func TestCouponDiscountTypeString(t *testing.T) {
 	cases := []struct {

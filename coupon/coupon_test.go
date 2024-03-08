@@ -78,7 +78,7 @@ func (mr *MockGeneratorMockRecorder) Validate(code string) *gomock.Call {
 
 // TestNewCouponContext tests the creation of a new CouponContext
 func TestNewCouponContext(t *testing.T) {
-	config := &CouponConfig{
+	config := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -102,7 +102,7 @@ func TestGenerateCoupon(t *testing.T) {
 	mockGenerator := NewMockGenerator(ctrl)
 	mockGenerator.EXPECT().Run().Return([]string{"PRE-XXXX-SUF"}, nil)
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -113,12 +113,12 @@ func TestGenerateCoupon(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	realCoupon, err := NewCouponContext(couponConfig)
+	realCoupon, err := NewCouponContext(CouponGenerationConfig)
 	assert.NoError(t, err)
 
 	mockGenerator.RunFunc = realCoupon.GetGenerator().Run
 	couponContext := &CouponContext{
-		CouponConfig: couponConfig,
+		CouponConfig: CouponGenerationConfig,
 		generator:    mockGenerator,
 	}
 
@@ -130,7 +130,7 @@ func TestGenerateCoupon(t *testing.T) {
 // TestGenerateCoupon tests generating a single coupon
 func TestBadWordPrefix(t *testing.T) {
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "BOOB",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -141,7 +141,7 @@ func TestBadWordPrefix(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	_, err := NewCouponContext(couponConfig)
+	_, err := NewCouponContext(CouponGenerationConfig)
 	assert.ErrorIs(t, err, generator.ErrPrefixBadWord)
 
 }
@@ -149,7 +149,7 @@ func TestBadWordPrefix(t *testing.T) {
 // TestGenerateCoupon tests generating a single coupon
 func TestBadwordSuffixLowerCase(t *testing.T) {
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "Boob",
 		Pattern:          "####",
@@ -160,7 +160,7 @@ func TestBadwordSuffixLowerCase(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	_, err := NewCouponContext(couponConfig)
+	_, err := NewCouponContext(CouponGenerationConfig)
 	assert.ErrorIs(t, err, generator.ErrSuffixBadWord)
 }
 
@@ -172,7 +172,7 @@ func TestGenerateCoupons(t *testing.T) {
 	mockGenerator := NewMockGenerator(ctrl)
 	mockGenerator.EXPECT().Run().Return([]string{"PRE-XXXX-SUF"}, nil)
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -182,12 +182,12 @@ func TestGenerateCoupons(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	realCoupons, err := NewCouponContext(couponConfig)
+	realCoupons, err := NewCouponContext(CouponGenerationConfig)
 	assert.NoError(t, err)
 
 	mockGenerator.RunFunc = realCoupons.GetGenerator().Run
 	couponContext := &CouponContext{
-		CouponConfig: couponConfig,
+		CouponConfig: CouponGenerationConfig,
 		generator:    mockGenerator,
 	}
 
@@ -206,7 +206,7 @@ func TestValidateCoupon(t *testing.T) {
 
 	mockGenerator := NewMockGenerator(ctrl)
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -216,7 +216,7 @@ func TestValidateCoupon(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	realCoupons, err := NewCouponContext(couponConfig)
+	realCoupons, err := NewCouponContext(CouponGenerationConfig)
 	assert.NoError(t, err)
 
 	coupons := []string{
@@ -235,7 +235,7 @@ func TestValidateCoupon(t *testing.T) {
 		mockGenerator.EXPECT().Validate(coupon).Return(coupon, nil)
 
 		couponContext := &CouponContext{
-			CouponConfig: couponConfig,
+			CouponConfig: CouponGenerationConfig,
 			generator:    mockGenerator,
 		}
 
@@ -253,7 +253,7 @@ func TestValidateBadCoupons(t *testing.T) {
 
 	mockGenerator := NewMockGenerator(ctrl)
 
-	couponConfig := &CouponConfig{
+	CouponGenerationConfig := &CouponGenerationConfig{
 		Prefix:           "PRE",
 		Suffix:           "SUF",
 		Pattern:          "####",
@@ -263,7 +263,7 @@ func TestValidateBadCoupons(t *testing.T) {
 		PatternCharacter: "#",
 	}
 
-	realCoupons, err := NewCouponContext(couponConfig)
+	realCoupons, err := NewCouponContext(CouponGenerationConfig)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -287,7 +287,7 @@ func TestValidateBadCoupons(t *testing.T) {
 		mockGenerator.EXPECT().Validate(test.coupon).Return(test.coupon, nil)
 
 		couponContext := &CouponContext{
-			CouponConfig: couponConfig,
+			CouponConfig: CouponGenerationConfig,
 			generator:    mockGenerator,
 		}
 

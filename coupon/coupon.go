@@ -1,10 +1,33 @@
 package coupon
 
 import (
+	"time"
+
+	"github.com/hibrid/coupons/discount"
 	"github.com/hibrid/coupons/generator"
 )
 
-type CouponConfig struct {
+type CouponDefinition struct {
+	ID              string                       `json:"id"`
+	Code            string                       `json:"code"`
+	Description     string                       `json:"description"`
+	DiscountPhases  []discount.DiscountPhase     `json:"discountPhases"` // Utilize existing structure to define the discount behavior
+	ApplicableTo    []string                     `json:"applicableTo"`   // SKU IDs or categories this coupon applies to
+	CompatibleWith  []string                     `json:"compatibleWith"` // IDs of coupons it is compatible with
+	ValidityStart   time.Time                    `json:"validityStart"`
+	ValidityEnd     time.Time                    `json:"validityEnd"`
+	UsageLimit      int                          `json:"usageLimit"`      // Global usage limit for the coupon
+	PerUserLimit    int                          `json:"perUserLimit"`    // Usage limit per user
+	Applicability   discount.DiscountApplication `json:"applicability"`   // Defines if it's applicable to the cart or items
+	RuleEnforcement []CouponRuleEnforcement      `json:"ruleEnforcement"` // Custom rules for additional validations
+}
+
+type CouponRuleEnforcement struct {
+	RuleType string `json:"ruleType"` // Example: "MinimumCartValue"
+	Value    string `json:"value"`    // The value related to the rule, e.g., "100" for minimum cart value
+}
+
+type CouponGenerationConfig struct {
 	Prefix        string `json:"prefix"`
 	Suffix        string `json:"suffix"`
 	Pattern       string `json:"pattern"`
@@ -26,12 +49,12 @@ type Coupon interface {
 
 // CouponContext is a struct that holds the coupon configuration and is used to generate and validate the coupon
 type CouponContext struct {
-	CouponConfig *CouponConfig
+	CouponConfig *CouponGenerationConfig
 	generator    generator.GeneratorInterface
 }
 
 // NewCouponContext creates a new coupon context based on the provided configuration
-func NewCouponContext(config *CouponConfig) (Coupon, error) {
+func NewCouponContext(config *CouponGenerationConfig) (Coupon, error) {
 	// Initialize a slice to hold the options
 	var options []generator.Option
 

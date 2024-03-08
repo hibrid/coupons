@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibrid/coupons/cart"
 	"github.com/hibrid/coupons/common"
 	"github.com/hibrid/coupons/coupon"
 	"github.com/hibrid/coupons/strategy"
@@ -69,9 +70,10 @@ type CampaignConfig struct {
 	CampaignType     CampaignType `json:"campaignType"` // Could be an ENUM in the DB
 
 	//PregeneratedCoupons  []Coupon        `json:"pregeneratedCoupons,omitempty"`
-	AllowOnDemandCoupons bool            `json:"allowOnDemandCoupons"`
-	PregenerateCoupons   bool            `json:"pregenerateCoupons"`
-	EligiblePlans        json.RawMessage `json:"eligiblePlans,omitempty"`
+	AllowOnDemandCoupons bool                          `json:"allowOnDemandCoupons"`
+	PregenerateCoupons   bool                          `json:"pregenerateCoupons"`
+	EligiblePlans        json.RawMessage               `json:"eligiblePlans,omitempty"`
+	CouponConfig         coupon.CouponGenerationConfig // Embedded coupon configuration
 
 	// coupon enforcement vars
 	ExpireAfter       time.Duration
@@ -85,13 +87,11 @@ type CampaignConfig struct {
 	StrategyConfig json.RawMessage `json:"strategyConfig"`
 	Strategy       strategy.DiscountStrategy
 
-	CouponConfig coupon.CouponConfig // Embedded coupon configuration
-
-	Cart *common.Cart // Embedded cart
+	Cart *cart.Cart // Embedded cart
 
 }
 
-func (c *CampaignConfig) GetCart() *common.Cart {
+func (c *CampaignConfig) GetCart() *cart.Cart {
 	// Return cart items for the campaign
 	return c.Cart
 }

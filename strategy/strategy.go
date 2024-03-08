@@ -1,12 +1,13 @@
 package strategy
 
 import (
+	"github.com/hibrid/coupons/cart"
 	"github.com/hibrid/coupons/common"
 )
 
 type CampaignData interface {
 	GetCampaignDetails() (startDate, endDate string, isActive bool)
-	GetCart() *common.Cart
+	GetCart() *cart.Cart
 	GetStartDate() string
 	GetEndDate() string
 	IsActive() error
